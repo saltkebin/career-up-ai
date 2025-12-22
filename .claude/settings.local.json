@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.mhlw.go.jp)",
+      "WebFetch(domain:jsite.mhlw.go.jp)",
+      "WebFetch(domain:sharoushi-cloud.com)",
+      "WebFetch(domain:www.jmatch.jp)",
+      "Bash(npx create-next-app:*)",
+      "Bash(npx shadcn@latest init -y)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(firebase projects:list:*)",
+      "Bash(firebase projects:create:*)",
+      "Bash(firebase apps:create:*)",
+      "Bash(firebase apps:sdkconfig:*)",
+      "Bash(firebase firestore:databases:create:*)",
+      "Bash(gcloud services enable:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp remove:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_close"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "playwright"
+  ]
+}
