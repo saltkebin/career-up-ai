@@ -970,6 +970,9 @@ export default function EligibilityPage() {
 
         {/* ナビゲーション */}
         <div className="flex justify-center gap-4">
+          <Link href="/documents/check">
+            <Button>書類チェックへ</Button>
+          </Link>
           <Link href="/calculator">
             <Button variant="outline">賃金計算へ</Button>
           </Link>

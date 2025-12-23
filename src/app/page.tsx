@@ -37,63 +37,153 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+          <Link href="/calculator">
+            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">📊</span>
+                  賃金上昇率計算
+                </CardTitle>
+                <CardDescription>
+                  3%要件を自動チェック
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  残業代・賞与などの除外項目を正しく処理し、
+                  転換前後の賃金上昇率を正確に計算します。
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/eligibility">
+            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">✅</span>
+                  支給要件チェック
+                </CardTitle>
+                <CardDescription>
+                  受給資格を事前確認
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  キャリアアップ計画の届出時期、雇用期間など、
+                  申請前に要件をすべてチェックできます。
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/documents">
+            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-blue-200 bg-blue-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">📋</span>
+                  書類チェック
+                  <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">NEW</span>
+                </CardTitle>
+                <CardDescription>
+                  必要書類の過不足を確認
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  申請に必要な書類が揃っているか、
+                  記入漏れがないかをチェックします。
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/guide">
+            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">💡</span>
+                  よくある失敗例
+                </CardTitle>
+                <CardDescription>
+                  申請ミスを防ぐガイド
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  残業代の計算ミス、届出時期の誤りなど、
+                  よくある失敗パターンを解説します。
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+        </section>
+
+        {/* Phase 3 機能 */}
         <section className="grid md:grid-cols-3 gap-6 mb-16">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span className="text-2xl">📊</span>
-                賃金上昇率計算
-              </CardTitle>
-              <CardDescription>
-                3%要件を自動チェック
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">
-                残業代・賞与などの除外項目を正しく処理し、
-                転換前後の賃金上昇率を正確に計算します。
-                よくある計算ミスを防ぎます。
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/summary">
+            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-purple-200 bg-purple-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">🎯</span>
+                  申請可否判定
+                  <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">NEW</span>
+                </CardTitle>
+                <CardDescription>
+                  L4: 要件充足チェック
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  全ての要件を総合的に判定し、
+                  申請可否と助成金額を算出します。
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span className="text-2xl">📅</span>
-                申請期限管理
-              </CardTitle>
-              <CardDescription>
-                2ヶ月の期限を逃さない
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">
-                転換日から自動で申請期限を計算。
-                期限が近づくとアラートでお知らせ。
-                厳格な期限管理で申請漏れを防止します。
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/documents/analyze">
+            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-green-200 bg-green-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">🤖</span>
+                  AI書類分析
+                  <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded">NEW</span>
+                </CardTitle>
+                <CardDescription>
+                  L3: Gemini 3 Flash OCR
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  賃金台帳や申請書をAIが自動で読み取り、
+                  データを抽出します。
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span className="text-2xl">✅</span>
-                支給要件チェック
-              </CardTitle>
-              <CardDescription>
-                受給資格を事前確認
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">
-                キャリアアップ計画の届出時期、雇用期間、
-                就業規則の整備状況など、申請前に要件を
-                すべてチェックできます。
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/export">
+            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-orange-200 bg-orange-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">📄</span>
+                  PDFエクスポート
+                  <span className="text-xs bg-orange-600 text-white px-2 py-0.5 rounded">NEW</span>
+                </CardTitle>
+                <CardDescription>
+                  申請概要書を自動生成
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  入力データから申請概要書を
+                  PDF形式で出力します。
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </section>
 
         <section className="bg-blue-900 text-white rounded-2xl p-8 mb-16">

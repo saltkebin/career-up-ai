@@ -145,7 +145,7 @@ export default function DashboardPage() {
         )}
 
         {/* クイックアクション */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
+        <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           <Link href="/calculator">
             <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
               <CardHeader className="pb-2">
@@ -178,6 +178,23 @@ export default function DashboardPage() {
             </Card>
           </Link>
 
+          <Link href="/documents/check">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full border-blue-200 bg-blue-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="text-2xl">📋</span>
+                  書類チェック
+                  <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded">NEW</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600">
+                  必要書類を確認
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
           <Link href="/guide">
             <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
               <CardHeader className="pb-2">
@@ -194,7 +211,7 @@ export default function DashboardPage() {
             </Card>
           </Link>
 
-          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full bg-blue-50 border-blue-200">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <span className="text-2xl">➕</span>
