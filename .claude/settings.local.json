@@ -23,7 +23,15 @@
       "mcp__playwright__browser_close",
       "Bash(npx vercel:*)",
       "WebFetch(domain:vercel.com)",
-      "mcp__playwright__browser_snapshot"
+      "mcp__playwright__browser_snapshot",
+      "Bash(where:*)",
+      "Bash(winget list:*)",
+      "Bash(winget install:*)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" auth status)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" auth login --web)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" repo create career-up-ai --public --source=. --remote=origin --push)",
+      "mcp__playwright__browser_tabs",
+      "mcp__playwright__browser_select_option"
     ]
   },
   "enabledMcpjsonServers": [

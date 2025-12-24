@@ -4,9 +4,9 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 
 // ドキュメントタイプの定義
 const DOCUMENT_TYPES = [
@@ -36,21 +36,18 @@ export default function DocumentAnalyzePage() {
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // ファイル選択時の処理
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setResult(null);
-      setError(null);
+  // ファイル選択時の処理（ドラッグ＆ドロップ・クリック共通）
+  const handleFileSelect = useCallback((file: File) => {
+    setSelectedFile(file);
+    setResult(null);
+    setError(null);
 
-      // プレビュー用URLを作成
-      if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        setPreviewUrl(url);
-      } else {
-        setPreviewUrl(null);
-      }
+    // プレビュー用URLを作成
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
     }
   }, []);
 
@@ -189,20 +186,34 @@ export default function DocumentAnalyzePage() {
               </div>
             </div>
 
-            {/* ファイル選択 */}
+            {/* ファイル選択（ドラッグ＆ドロップ対応） */}
             <div>
-              <Label htmlFor="file" className="mb-2 block">ファイル選択</Label>
-              <Input
-                id="file"
-                type="file"
+              <Label className="mb-2 block">ファイル選択</Label>
+              <FileDropzone
+                onFileSelect={handleFileSelect}
                 accept="image/*,.pdf"
-                onChange={handleFileChange}
-                className="cursor-pointer"
-              />
+                maxSize={10 * 1024 * 1024}
+                disabled={isAnalyzing}
+              >
+                <div className="space-y-2">
+                  <div className="text-4xl">📄</div>
+                  <div className="text-gray-600">
+                    <span className="font-medium text-blue-600">クリックして選択</span>
+                    <span className="mx-2">または</span>
+                    <span className="font-medium">ドラッグ＆ドロップ</span>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    PNG, JPG, PDF に対応（最大10MB）
+                  </p>
+                </div>
+              </FileDropzone>
               {selectedFile && (
-                <p className="text-sm text-gray-500 mt-2">
-                  選択中: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                </p>
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                  <span className="text-green-600">✓</span>
+                  <span className="text-sm text-green-800">
+                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                  </span>
+                </div>
               )}
             </div>
 
