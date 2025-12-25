@@ -56,30 +56,31 @@ export default function RegisterPage() {
         formData.password
       );
 
-      // プロフィール更新
-      await updateProfile(userCredential.user, {
-        displayName: formData.name,
-      });
+      const uid = userCredential.user.uid;
+      const now = new Date().toISOString();
 
-      // Firestoreにユーザー情報を保存
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        uid: userCredential.user.uid,
-        email: formData.email,
-        name: formData.name,
-        officeName: formData.officeName,
-        role: "admin",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-
-      // 事務所情報も作成
-      await setDoc(doc(db, "offices", userCredential.user.uid), {
-        id: userCredential.user.uid,
-        name: formData.officeName,
-        ownerUid: userCredential.user.uid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      // プロフィール更新とFirestore保存を並列実行
+      await Promise.all([
+        updateProfile(userCredential.user, {
+          displayName: formData.name,
+        }),
+        setDoc(doc(db, "users", uid), {
+          uid,
+          email: formData.email,
+          name: formData.name,
+          officeName: formData.officeName,
+          role: "admin",
+          createdAt: now,
+          updatedAt: now,
+        }),
+        setDoc(doc(db, "offices", uid), {
+          id: uid,
+          name: formData.officeName,
+          ownerUid: uid,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      ]);
 
       router.push("/dashboard");
     } catch (err) {
