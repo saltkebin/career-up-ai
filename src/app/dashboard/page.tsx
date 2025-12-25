@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { collection, query, where, getDocs, orderBy, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -47,8 +47,7 @@ export default function DashboardPage() {
         const applicationsRef = collection(db, "applications");
         const q = query(
           applicationsRef,
-          where("createdBy", "==", user.uid),
-          orderBy("daysRemaining", "asc")
+          where("createdBy", "==", user.uid)
         );
 
         const snapshot = await getDocs(q);
@@ -91,6 +90,8 @@ export default function DashboardPage() {
               estimatedAmount: data.estimatedAmount,
             };
           });
+          // 残り日数でソート（少ない順）
+          apps.sort((a, b) => a.daysRemaining - b.daysRemaining);
           setApplications(apps);
         }
       } catch (error) {
