@@ -1,0 +1,26 @@
+{
+  "name": "キャリアアップ助成金 申請支援",
+  "short_name": "助成金申請",
+  "description": "キャリアアップ助成金（正社員化コース）の申請業務を支援するWebアプリケーション",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3B82F6",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
