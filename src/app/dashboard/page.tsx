@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,53 +19,49 @@ interface Application {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, logout } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        // 申請データを取得（デモ用のサンプルデータ）
-        setApplications([
-          {
-            id: "1",
-            workerName: "田中 一郎",
-            conversionDate: "2025-04-01",
-            applicationDeadline: "2025-12-25",
-            status: "準備中",
-            daysRemaining: 2,
-          },
-          {
-            id: "2",
-            workerName: "鈴木 花子",
-            conversionDate: "2025-06-01",
-            applicationDeadline: "2026-02-25",
-            status: "書類作成中",
-            daysRemaining: 64,
-          },
-          {
-            id: "3",
-            workerName: "佐藤 次郎",
-            conversionDate: "2025-07-15",
-            applicationDeadline: "2026-03-25",
-            status: "要件確認中",
-            daysRemaining: 92,
-          },
-        ]);
-      } else {
-        router.push("/login");
-      }
-      setLoading(false);
-    });
+    if (!loading && !user) {
+      router.push("/login");
+      return;
+    }
 
-    return () => unsubscribe();
-  }, [router]);
+    if (user) {
+      // 申請データを取得（デモ用のサンプルデータ）
+      setApplications([
+        {
+          id: "1",
+          workerName: "田中 一郎",
+          conversionDate: "2025-04-01",
+          applicationDeadline: "2025-12-25",
+          status: "準備中",
+          daysRemaining: 2,
+        },
+        {
+          id: "2",
+          workerName: "鈴木 花子",
+          conversionDate: "2025-06-01",
+          applicationDeadline: "2026-02-25",
+          status: "書類作成中",
+          daysRemaining: 64,
+        },
+        {
+          id: "3",
+          workerName: "佐藤 次郎",
+          conversionDate: "2025-07-15",
+          applicationDeadline: "2026-03-25",
+          status: "要件確認中",
+          daysRemaining: 92,
+        },
+      ]);
+    }
+  }, [user, loading, router]);
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await logout();
       router.push("/");
     } catch (error) {
       console.error("ログアウトエラー:", error);
