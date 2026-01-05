@@ -156,6 +156,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true);
+    let clientsLoaded = false;
+    let applicationsLoaded = false;
+
+    const checkLoaded = () => {
+      if (clientsLoaded && applicationsLoaded) {
+        setLoading(false);
+      }
+    };
 
     // クライアントのリアルタイムリスナー
     const clientsRef = collection(db, `offices/${officeId}/clients`);
@@ -173,9 +181,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
           } as Client);
         });
         setClients(clientsData);
+        clientsLoaded = true;
+        checkLoaded();
       },
       (error) => {
         console.error("クライアント読み込みエラー:", error);
+        clientsLoaded = true;
+        checkLoaded();
       }
     );
 
@@ -197,11 +209,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
           } as Application);
         });
         setApplications(appsData);
-        setLoading(false);
+        applicationsLoaded = true;
+        checkLoaded();
       },
       (error) => {
         console.error("申請読み込みエラー:", error);
-        setLoading(false);
+        applicationsLoaded = true;
+        checkLoaded();
       }
     );
 

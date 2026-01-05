@@ -37,7 +37,9 @@
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_console_messages",
-      "mcp__playwright__browser_network_requests"
+      "mcp__playwright__browser_network_requests",
+      "Bash(taskkill:*)",
+      "Bash(tasklist:*)"
     ]
   },
   "enabledMcpjsonServers": [
