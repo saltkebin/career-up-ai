@@ -129,9 +129,14 @@ export default function GuidePage() {
           <Link href="/" className="text-xl font-bold text-blue-900">
             キャリアアップ助成金 申請支援
           </Link>
-          <Link href="/login">
-            <Button variant="outline">ログイン</Button>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
+              ヘルプ
+            </Link>
+            <Link href="/login">
+              <Button variant="outline">ログイン</Button>
+            </Link>
+          </div>
         </div>
       </header>
 

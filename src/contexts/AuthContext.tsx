@@ -10,29 +10,45 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 // 環境変数からパスワードを取得（設定されていない場合はデフォルト値）
 const APP_PASSWORD = process.env.NEXT_PUBLIC_APP_PASSWORD || "sharoushi2025";
 
+// 事務所IDを生成（パスワードからハッシュ風の文字列を生成）
+function generateOfficeId(password: string): string {
+  let hash = 0;
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return `office_${Math.abs(hash).toString(16)}`;
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   login: (password: string) => boolean;
   logout: () => void;
   officeName: string;
+  officeId: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = "career-up-ai-auth";
+const OFFICE_ID_KEY = "career-up-ai-office-id";
 const OFFICE_NAME = "テスト社労士事務所"; // 後で設定可能に
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [officeId, setOfficeId] = useState<string | null>(null);
 
   useEffect(() => {
     // ローカルストレージから認証状態を復元
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "authenticated") {
+      const storedOfficeId = localStorage.getItem(OFFICE_ID_KEY);
+      if (stored === "authenticated" && storedOfficeId) {
         setIsAuthenticated(true);
+        setOfficeId(storedOfficeId);
       }
     } catch (error) {
       console.error("認証状態の復元エラー:", error);
@@ -43,9 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (password: string): boolean => {
     if (password === APP_PASSWORD) {
+      const newOfficeId = generateOfficeId(password);
       setIsAuthenticated(true);
+      setOfficeId(newOfficeId);
       try {
         localStorage.setItem(STORAGE_KEY, "authenticated");
+        localStorage.setItem(OFFICE_ID_KEY, newOfficeId);
       } catch (error) {
         console.error("認証状態の保存エラー:", error);
       }
@@ -56,8 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setIsAuthenticated(false);
+    setOfficeId(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(OFFICE_ID_KEY);
     } catch (error) {
       console.error("ログアウトエラー:", error);
     }
@@ -69,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
-      officeName: OFFICE_NAME
+      officeName: OFFICE_NAME,
+      officeId
     }}>
       {children}
     </AuthContext.Provider>

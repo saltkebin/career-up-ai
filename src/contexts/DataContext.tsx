@@ -1,11 +1,37 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  doc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  onSnapshot,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
+import { useAuth } from "./AuthContext";
 
 /**
  * アプリケーションデータ管理コンテキスト
- * ローカルストレージを使用してデータを永続化
+ * Firestoreを使用してデータを永続化
  */
+
+// 転換前準備チェックリストの項目
+export interface PreparationChecklist {
+  careerUpPlanSubmitted?: boolean;
+  employmentRulesReady?: boolean;
+  regularEmployeeDefinitionReady?: boolean;
+  wageTableReady?: boolean;
+  trialPeriodChecked?: boolean;
+  socialInsuranceReady?: boolean;
+  laborConditionsNotified?: boolean;
+  sixMonthEmploymentConfirmed?: boolean;
+}
 
 export interface Client {
   id: string;
@@ -15,6 +41,7 @@ export interface Client {
   careerUpManager?: string;
   hasEmploymentRules: boolean;
   careerUpPlanSubmittedAt?: string;
+  preparationChecklist?: PreparationChecklist;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,7 +57,7 @@ export interface Application {
   conversionDate: string;
   conversionType: 'fixed_to_regular' | 'indefinite_to_regular' | 'dispatch_to_regular';
   applicationDeadline: string;
-  status: 'preparing' | 'documents_ready' | 'submitted' | 'approved' | 'rejected';
+  status: 'preparing' | 'documents_ready' | 'submitted' | 'under_review' | 'approved' | 'paid' | 'rejected';
   statusLabel: string;
   daysRemaining: number;
   isPriorityTarget: boolean;
@@ -45,6 +72,22 @@ export interface Application {
     total: number;
   };
   notes?: string;
+  submittedAt?: string;
+  reviewStartedAt?: string;
+  approvedAt?: string;
+  paidAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  phase: 1 | 2;
+  phase1ApplicationId?: string;
+  phase2DeadlineNotified?: boolean;
+  documentCheckResult?: {
+    checkedAt: string;
+    completedCount: number;
+    totalCount: number;
+    missingDocuments: string[];
+    notes?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -52,180 +95,21 @@ export interface Application {
 interface DataContextType {
   clients: Client[];
   applications: Application[];
-  addClient: (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => Client;
-  updateClient: (id: string, updates: Partial<Client>) => void;
-  deleteClient: (id: string) => void;
-  addApplication: (application: Omit<Application, 'id' | 'createdAt' | 'updatedAt' | 'daysRemaining' | 'statusLabel'>) => Application;
-  updateApplication: (id: string, updates: Partial<Application>) => void;
-  deleteApplication: (id: string) => void;
+  loading: boolean;
+  addClient: (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Client>;
+  updateClient: (id: string, updates: Partial<Client>) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
+  addApplication: (application: Omit<Application, 'id' | 'createdAt' | 'updatedAt' | 'daysRemaining' | 'statusLabel'>) => Promise<Application>;
+  updateApplication: (id: string, updates: Partial<Application>) => Promise<void>;
+  deleteApplication: (id: string) => Promise<void>;
   getClientById: (id: string) => Client | undefined;
   getApplicationById: (id: string) => Application | undefined;
   getApplicationsByClientId: (clientId: string) => Application[];
+  exportData: () => string;
+  importData: (jsonData: string) => Promise<boolean>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
-
-const STORAGE_KEY_CLIENTS = "career-up-ai-clients";
-const STORAGE_KEY_APPLICATIONS = "career-up-ai-applications";
-
-// 初期サンプルデータ
-const initialClients: Client[] = [
-  {
-    id: "client-1",
-    companyName: "株式会社テックフォワード",
-    registrationNumber: "1301-123456-7",
-    isSmallBusiness: true,
-    careerUpManager: "山田 太郎",
-    hasEmploymentRules: true,
-    careerUpPlanSubmittedAt: "2024-10-01",
-    createdAt: "2024-10-01",
-    updatedAt: "2024-10-01",
-  },
-  {
-    id: "client-2",
-    companyName: "有限会社さくら製作所",
-    registrationNumber: "1302-234567-8",
-    isSmallBusiness: true,
-    careerUpManager: "佐藤 花子",
-    hasEmploymentRules: true,
-    careerUpPlanSubmittedAt: "2024-11-01",
-    createdAt: "2024-11-01",
-    updatedAt: "2024-11-01",
-  },
-  {
-    id: "client-3",
-    companyName: "合同会社グリーンテック",
-    registrationNumber: "1303-345678-9",
-    isSmallBusiness: true,
-    careerUpManager: "田中 一郎",
-    hasEmploymentRules: false,
-    createdAt: "2024-12-01",
-    updatedAt: "2024-12-01",
-  },
-];
-
-const initialApplications: Application[] = [
-  {
-    id: "app-1",
-    clientId: "client-1",
-    workerName: "田中 一郎",
-    workerNameKana: "タナカ イチロウ",
-    birthDate: "1990-05-15",
-    gender: "male",
-    hireDate: "2024-04-01",
-    conversionDate: "2025-04-01",
-    conversionType: "fixed_to_regular",
-    applicationDeadline: "2026-01-07",
-    status: "preparing",
-    statusLabel: "準備中",
-    daysRemaining: 2,
-    isPriorityTarget: false,
-    priorityCategory: null,
-    preSalary: 250000,
-    postSalary: 260000,
-    salaryIncreaseRate: 4.0,
-    estimatedAmount: { phase1: 800000, phase2: 0, total: 800000 },
-    notes: "期限間近・緊急対応必要",
-    createdAt: "2024-12-01",
-    updatedAt: "2024-12-01",
-  },
-  {
-    id: "app-2",
-    clientId: "client-1",
-    workerName: "鈴木 花子",
-    workerNameKana: "スズキ ハナコ",
-    birthDate: "1985-08-20",
-    gender: "female",
-    hireDate: "2024-06-01",
-    conversionDate: "2025-06-01",
-    conversionType: "fixed_to_regular",
-    applicationDeadline: "2026-03-10",
-    status: "documents_ready",
-    statusLabel: "書類作成中",
-    daysRemaining: 64,
-    isPriorityTarget: false,
-    priorityCategory: null,
-    preSalary: 230000,
-    postSalary: 240000,
-    salaryIncreaseRate: 4.3,
-    estimatedAmount: { phase1: 800000, phase2: 0, total: 800000 },
-    notes: "順調に進行中",
-    createdAt: "2024-12-01",
-    updatedAt: "2024-12-01",
-  },
-  {
-    id: "app-3",
-    clientId: "client-2",
-    workerName: "山田 美咲",
-    workerNameKana: "ヤマダ ミサキ",
-    birthDate: "1992-11-25",
-    gender: "female",
-    hireDate: "2024-01-15",
-    conversionDate: "2025-01-01",
-    conversionType: "fixed_to_regular",
-    applicationDeadline: "2026-02-19",
-    status: "documents_ready",
-    statusLabel: "書類作成中",
-    daysRemaining: 45,
-    isPriorityTarget: true,
-    priorityCategory: "A",
-    priorityReason: "母子家庭の母",
-    preSalary: 220000,
-    postSalary: 230000,
-    salaryIncreaseRate: 4.5,
-    estimatedAmount: { phase1: 1200000, phase2: 1200000, total: 2400000 },
-    createdAt: "2024-12-01",
-    updatedAt: "2024-12-01",
-  },
-  {
-    id: "app-4",
-    clientId: "client-2",
-    workerName: "高橋 健太",
-    workerNameKana: "タカハシ ケンタ",
-    birthDate: "1995-02-28",
-    gender: "male",
-    hireDate: "2024-03-01",
-    conversionDate: "2025-03-01",
-    conversionType: "fixed_to_regular",
-    applicationDeadline: "2026-02-04",
-    status: "preparing",
-    statusLabel: "準備中",
-    daysRemaining: 30,
-    isPriorityTarget: true,
-    priorityCategory: "B",
-    priorityReason: "過去5年間に5回以上離職",
-    preSalary: 240000,
-    postSalary: 250000,
-    salaryIncreaseRate: 4.2,
-    estimatedAmount: { phase1: 1200000, phase2: 1200000, total: 2400000 },
-    createdAt: "2024-12-01",
-    updatedAt: "2024-12-01",
-  },
-  {
-    id: "app-5",
-    clientId: "client-3",
-    workerName: "加藤 正明",
-    workerNameKana: "カトウ マサアキ",
-    birthDate: "1978-06-30",
-    gender: "male",
-    hireDate: "2024-02-01",
-    conversionDate: "2025-02-01",
-    conversionType: "fixed_to_regular",
-    applicationDeadline: "2026-02-12",
-    status: "documents_ready",
-    statusLabel: "書類作成中",
-    daysRemaining: 38,
-    isPriorityTarget: true,
-    priorityCategory: "C",
-    priorityReason: "就職氷河期世代（1970-1982年生まれ）",
-    preSalary: 280000,
-    postSalary: 290000,
-    salaryIncreaseRate: 3.6,
-    estimatedAmount: { phase1: 1200000, phase2: 1200000, total: 2400000 },
-    createdAt: "2024-12-01",
-    updatedAt: "2024-12-01",
-  },
-];
 
 // ステータスラベルを取得
 function getStatusLabel(status: Application['status']): string {
@@ -233,7 +117,9 @@ function getStatusLabel(status: Application['status']): string {
     preparing: '準備中',
     documents_ready: '書類作成中',
     submitted: '申請済み',
+    under_review: '審査中',
     approved: '承認済み',
+    paid: '支給済み',
     rejected: '不承認',
   };
   return labels[status] || '準備中';
@@ -249,148 +135,237 @@ function calculateDaysRemaining(deadline: string): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-// UUID生成
-function generateId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+// Firestore Timestampを文字列に変換
+function timestampToString(timestamp: Timestamp | string | undefined): string {
+  if (!timestamp) return new Date().toISOString();
+  if (typeof timestamp === 'string') return timestamp;
+  return timestamp.toDate().toISOString();
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const { officeId } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // 初期化：ローカルストレージからデータを読み込む
+  // Firestoreからデータを読み込む
   useEffect(() => {
-    try {
-      const storedClients = localStorage.getItem(STORAGE_KEY_CLIENTS);
-      const storedApplications = localStorage.getItem(STORAGE_KEY_APPLICATIONS);
+    if (!officeId) {
+      setLoading(false);
+      return;
+    }
 
-      if (storedClients) {
-        setClients(JSON.parse(storedClients));
-      } else {
-        setClients(initialClients);
-        localStorage.setItem(STORAGE_KEY_CLIENTS, JSON.stringify(initialClients));
+    setLoading(true);
+
+    // クライアントのリアルタイムリスナー
+    const clientsRef = collection(db, `offices/${officeId}/clients`);
+    const unsubClients = onSnapshot(
+      query(clientsRef),
+      (snapshot) => {
+        const clientsData: Client[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          clientsData.push({
+            ...data,
+            id: doc.id,
+            createdAt: timestampToString(data.createdAt),
+            updatedAt: timestampToString(data.updatedAt),
+          } as Client);
+        });
+        setClients(clientsData);
+      },
+      (error) => {
+        console.error("クライアント読み込みエラー:", error);
       }
+    );
 
-      if (storedApplications) {
-        // 残り日数を再計算
-        const apps = JSON.parse(storedApplications) as Application[];
-        const updatedApps = apps.map(app => ({
-          ...app,
-          daysRemaining: calculateDaysRemaining(app.applicationDeadline),
-          statusLabel: getStatusLabel(app.status),
-        }));
-        setApplications(updatedApps);
-      } else {
-        // 初期データの残り日数を計算
-        const appsWithDays = initialApplications.map(app => ({
-          ...app,
-          daysRemaining: calculateDaysRemaining(app.applicationDeadline),
-          statusLabel: getStatusLabel(app.status),
-        }));
-        setApplications(appsWithDays);
-        localStorage.setItem(STORAGE_KEY_APPLICATIONS, JSON.stringify(appsWithDays));
+    // 申請のリアルタイムリスナー
+    const applicationsRef = collection(db, `offices/${officeId}/applications`);
+    const unsubApplications = onSnapshot(
+      query(applicationsRef),
+      (snapshot) => {
+        const appsData: Application[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          appsData.push({
+            ...data,
+            id: doc.id,
+            daysRemaining: calculateDaysRemaining(data.applicationDeadline),
+            statusLabel: getStatusLabel(data.status),
+            createdAt: timestampToString(data.createdAt),
+            updatedAt: timestampToString(data.updatedAt),
+          } as Application);
+        });
+        setApplications(appsData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("申請読み込みエラー:", error);
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("データ読み込みエラー:", error);
-      setClients(initialClients);
-      setApplications(initialApplications);
-    } finally {
-      setIsInitialized(true);
-    }
-  }, []);
+    );
 
-  // データ変更時にローカルストレージに保存
-  useEffect(() => {
-    if (isInitialized && clients.length > 0) {
-      localStorage.setItem(STORAGE_KEY_CLIENTS, JSON.stringify(clients));
-    }
-  }, [clients, isInitialized]);
+    return () => {
+      unsubClients();
+      unsubApplications();
+    };
+  }, [officeId]);
 
-  useEffect(() => {
-    if (isInitialized && applications.length > 0) {
-      localStorage.setItem(STORAGE_KEY_APPLICATIONS, JSON.stringify(applications));
-    }
-  }, [applications, isInitialized]);
+  const addClient = useCallback(async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
+    if (!officeId) throw new Error("認証が必要です");
 
-  const addClient = (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Client => {
-    const now = new Date().toISOString();
+    const clientsRef = collection(db, `offices/${officeId}/clients`);
+    const docRef = await addDoc(clientsRef, {
+      ...clientData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
     const newClient: Client = {
       ...clientData,
-      id: generateId(),
-      createdAt: now,
-      updatedAt: now,
+      id: docRef.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    setClients(prev => [...prev, newClient]);
+
     return newClient;
-  };
+  }, [officeId]);
 
-  const updateClient = (id: string, updates: Partial<Client>) => {
-    setClients(prev => prev.map(client =>
-      client.id === id
-        ? { ...client, ...updates, updatedAt: new Date().toISOString() }
-        : client
-    ));
-  };
+  const updateClient = useCallback(async (id: string, updates: Partial<Client>): Promise<void> => {
+    if (!officeId) throw new Error("認証が必要です");
 
-  const deleteClient = (id: string) => {
-    setClients(prev => prev.filter(client => client.id !== id));
+    const clientRef = doc(db, `offices/${officeId}/clients`, id);
+    await updateDoc(clientRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  }, [officeId]);
+
+  const deleteClient = useCallback(async (id: string): Promise<void> => {
+    if (!officeId) throw new Error("認証が必要です");
+
     // 関連する申請も削除
-    setApplications(prev => prev.filter(app => app.clientId !== id));
-  };
+    const relatedApps = applications.filter(app => app.clientId === id);
+    for (const app of relatedApps) {
+      const appRef = doc(db, `offices/${officeId}/applications`, app.id);
+      await deleteDoc(appRef);
+    }
 
-  const addApplication = (appData: Omit<Application, 'id' | 'createdAt' | 'updatedAt' | 'daysRemaining' | 'statusLabel'>): Application => {
-    const now = new Date().toISOString();
+    const clientRef = doc(db, `offices/${officeId}/clients`, id);
+    await deleteDoc(clientRef);
+  }, [officeId, applications]);
+
+  const addApplication = useCallback(async (appData: Omit<Application, 'id' | 'createdAt' | 'updatedAt' | 'daysRemaining' | 'statusLabel'>): Promise<Application> => {
+    if (!officeId) throw new Error("認証が必要です");
+
+    const applicationsRef = collection(db, `offices/${officeId}/applications`);
+    const docRef = await addDoc(applicationsRef, {
+      ...appData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
     const newApplication: Application = {
       ...appData,
-      id: generateId(),
+      id: docRef.id,
       daysRemaining: calculateDaysRemaining(appData.applicationDeadline),
       statusLabel: getStatusLabel(appData.status),
-      createdAt: now,
-      updatedAt: now,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    setApplications(prev => [...prev, newApplication]);
+
     return newApplication;
-  };
+  }, [officeId]);
 
-  const updateApplication = (id: string, updates: Partial<Application>) => {
-    setApplications(prev => prev.map(app => {
-      if (app.id === id) {
-        const updated = { ...app, ...updates, updatedAt: new Date().toISOString() };
-        // 期限が更新された場合は残り日数を再計算
-        if (updates.applicationDeadline) {
-          updated.daysRemaining = calculateDaysRemaining(updates.applicationDeadline);
-        }
-        // ステータスが更新された場合はラベルを再設定
-        if (updates.status) {
-          updated.statusLabel = getStatusLabel(updates.status);
-        }
-        return updated;
+  const updateApplication = useCallback(async (id: string, updates: Partial<Application>): Promise<void> => {
+    if (!officeId) throw new Error("認証が必要です");
+
+    const appRef = doc(db, `offices/${officeId}/applications`, id);
+    await updateDoc(appRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  }, [officeId]);
+
+  const deleteApplication = useCallback(async (id: string): Promise<void> => {
+    if (!officeId) throw new Error("認証が必要です");
+
+    const appRef = doc(db, `offices/${officeId}/applications`, id);
+    await deleteDoc(appRef);
+  }, [officeId]);
+
+  const getClientById = useCallback((id: string) => clients.find(c => c.id === id), [clients]);
+  const getApplicationById = useCallback((id: string) => applications.find(a => a.id === id), [applications]);
+  const getApplicationsByClientId = useCallback((clientId: string) => applications.filter(a => a.clientId === clientId), [applications]);
+
+  // データエクスポート
+  const exportData = useCallback((): string => {
+    const data = {
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      clients,
+      applications,
+    };
+    return JSON.stringify(data, null, 2);
+  }, [clients, applications]);
+
+  // データインポート
+  const importData = useCallback(async (jsonData: string): Promise<boolean> => {
+    if (!officeId) return false;
+
+    try {
+      const data = JSON.parse(jsonData);
+
+      if (!data.clients || !data.applications) {
+        console.error("Invalid data format");
+        return false;
       }
-      return app;
-    }));
-  };
 
-  const deleteApplication = (id: string) => {
-    setApplications(prev => prev.filter(app => app.id !== id));
-  };
+      // 既存データを削除
+      const clientsRef = collection(db, `offices/${officeId}/clients`);
+      const applicationsRef = collection(db, `offices/${officeId}/applications`);
 
-  const getClientById = (id: string) => clients.find(c => c.id === id);
-  const getApplicationById = (id: string) => applications.find(a => a.id === id);
-  const getApplicationsByClientId = (clientId: string) => applications.filter(a => a.clientId === clientId);
+      const existingClients = await getDocs(clientsRef);
+      for (const doc of existingClients.docs) {
+        await deleteDoc(doc.ref);
+      }
 
-  if (!isInitialized) {
-    return null;
-  }
+      const existingApps = await getDocs(applicationsRef);
+      for (const doc of existingApps.docs) {
+        await deleteDoc(doc.ref);
+      }
+
+      // 新しいデータをインポート
+      for (const client of data.clients as Client[]) {
+        const { id, ...clientData } = client;
+        await addDoc(clientsRef, {
+          ...clientData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      for (const app of data.applications as Application[]) {
+        const { id, daysRemaining, statusLabel, ...appData } = app;
+        await addDoc(applicationsRef, {
+          ...appData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Import error:", error);
+      return false;
+    }
+  }, [officeId]);
 
   return (
     <DataContext.Provider value={{
       clients,
       applications,
+      loading,
       addClient,
       updateClient,
       deleteClient,
@@ -400,6 +375,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       getClientById,
       getApplicationById,
       getApplicationsByClientId,
+      exportData,
+      importData,
     }}>
       {children}
     </DataContext.Provider>

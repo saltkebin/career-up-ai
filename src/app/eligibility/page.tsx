@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ============================================================
 // 型定義
@@ -525,9 +526,14 @@ export default function EligibilityPage() {
           <Link href="/" className="text-xl font-bold text-blue-900">
             キャリアアップ助成金 申請支援
           </Link>
-          <Link href="/login">
-            <Button variant="outline">ログイン</Button>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
+              ヘルプ
+            </Link>
+            <Link href="/login">
+              <Button variant="outline">ログイン</Button>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -889,24 +895,45 @@ export default function EligibilityPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid md:grid-cols-3 gap-4">
-                    <div className="bg-gray-50 p-4 rounded text-center">
-                      <div className="text-sm text-gray-600">基本額</div>
-                      <div className="text-2xl font-bold">
-                        {subsidyResult.baseAmount.toLocaleString()}円
-                      </div>
-                    </div>
-                    <div className="bg-blue-50 p-4 rounded text-center">
-                      <div className="text-sm text-gray-600">加算額</div>
-                      <div className="text-2xl font-bold text-blue-600">
-                        +{subsidyResult.additionalAmount.toLocaleString()}円
-                      </div>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded text-center">
-                      <div className="text-sm text-gray-600">合計</div>
-                      <div className="text-3xl font-bold text-green-600">
-                        {subsidyResult.totalAmount.toLocaleString()}円
-                      </div>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="bg-gray-50 p-4 rounded text-center cursor-help">
+                          <div className="text-sm text-gray-600">基本額</div>
+                          <div className="text-2xl font-bold">
+                            {subsidyResult.baseAmount.toLocaleString()}円
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>中小企業80万円、大企業60万円が基本額です</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="bg-blue-50 p-4 rounded text-center cursor-help">
+                          <div className="text-sm text-gray-600">加算額</div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            +{subsidyResult.additionalAmount.toLocaleString()}円
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>重点支援対象者（カテゴリA/B/C）に該当すると12万円が加算されます</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="bg-green-50 p-4 rounded text-center cursor-help">
+                          <div className="text-sm text-gray-600">合計</div>
+                          <div className="text-3xl font-bold text-green-600">
+                            {subsidyResult.totalAmount.toLocaleString()}円
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>第1期の想定助成金額です。重点支援対象者は第2期申請でさらに助成金が受けられます</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </CardContent>
               </Card>

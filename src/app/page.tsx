@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function Home() {
   return (
@@ -8,9 +9,14 @@ export default function Home() {
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-xl font-bold text-blue-900">キャリアアップ助成金 申請支援</h1>
-          <Link href="/login">
-            <Button variant="outline">ログイン</Button>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
+              ヘルプ
+            </Link>
+            <Link href="/login">
+              <Button variant="outline">ログイン</Button>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -38,86 +44,114 @@ export default function Home() {
         </section>
 
         <section className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-          <Link href="/calculator">
-            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">📊</span>
-                  賃金上昇率計算
-                </CardTitle>
-                <CardDescription>
-                  3%要件を自動チェック
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  残業代・賞与などの除外項目を正しく処理し、
-                  転換前後の賃金上昇率を正確に計算します。
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/calculator">
+                <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">📊</span>
+                      賃金上昇率計算
+                    </CardTitle>
+                    <CardDescription>
+                      3%要件を自動チェック
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">
+                      残業代・賞与などの除外項目を正しく処理し、
+                      転換前後の賃金上昇率を正確に計算します。
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>転換前後6ヶ月の賃金を入力し、3%以上の賃金上昇要件を満たしているか確認できます</p>
+            </TooltipContent>
+          </Tooltip>
 
-          <Link href="/eligibility">
-            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">✅</span>
-                  支給要件チェック
-                </CardTitle>
-                <CardDescription>
-                  受給資格を事前確認
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  キャリアアップ計画の届出時期、雇用期間など、
-                  申請前に要件をすべてチェックできます。
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/eligibility">
+                <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">✅</span>
+                      支給要件チェック
+                    </CardTitle>
+                    <CardDescription>
+                      受給資格を事前確認
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">
+                      キャリアアップ計画の届出時期、雇用期間など、
+                      申請前に要件をすべてチェックできます。
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>キャリアアップ計画届出時期、雇用期間、賃金要件など全ての支給要件をチェックします</p>
+            </TooltipContent>
+          </Tooltip>
 
-          <Link href="/documents">
-            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-blue-200 bg-blue-50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">📋</span>
-                  書類チェック
-                  <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">NEW</span>
-                </CardTitle>
-                <CardDescription>
-                  必要書類の過不足を確認
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  申請に必要な書類が揃っているか、
-                  記入漏れがないかをチェックします。
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/documents">
+                <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">📋</span>
+                      書類チェック
+                      <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">NEW</span>
+                    </CardTitle>
+                    <CardDescription>
+                      必要書類の過不足を確認
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">
+                      申請に必要な書類が揃っているか、
+                      記入漏れがないかをチェックします。
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>申請に必要な書類（賃金台帳、出勤簿、労働条件通知書など）の準備状況を確認できます</p>
+            </TooltipContent>
+          </Tooltip>
 
-          <Link href="/guide">
-            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">💡</span>
-                  よくある失敗例
-                </CardTitle>
-                <CardDescription>
-                  申請ミスを防ぐガイド
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  残業代の計算ミス、届出時期の誤りなど、
-                  よくある失敗パターンを解説します。
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/guide">
+                <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">💡</span>
+                      よくある失敗例
+                    </CardTitle>
+                    <CardDescription>
+                      申請ミスを防ぐガイド
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">
+                      残業代の計算ミス、届出時期の誤りなど、
+                      よくある失敗パターンを解説します。
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>申請でよくある失敗パターンと対策を解説。事前に確認して申請ミスを防ぎましょう</p>
+            </TooltipContent>
+          </Tooltip>
         </section>
 
         {/* Phase 3 機能 */}

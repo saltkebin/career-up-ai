@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DocumentCode, DocumentCheckItem, DocumentCheckResult, MandatoryField } from "@/types/documents";
 
 // ========================================
@@ -493,18 +494,25 @@ export default function DocumentCheckPage() {
         {/* 重点支援対象者フラグ */}
         <Card className="mb-6">
           <CardContent className="pt-6">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPriorityTarget}
-                onChange={(e) => setIsPriorityTarget(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <div>
-                <span className="font-medium">重点支援対象者である</span>
-                <p className="text-sm text-gray-500">該当する場合は追加書類が必要です（+12万円加算）</p>
-              </div>
-            </label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isPriorityTarget}
+                    onChange={(e) => setIsPriorityTarget(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="font-medium">重点支援対象者である</span>
+                    <p className="text-sm text-gray-500">該当する場合は追加書類が必要です（+12万円加算）</p>
+                  </div>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>カテゴリA:雇入れ3年以内で保険未加入、B:派遣労働者、C:正社員希望で有期採用のいずれかに該当する場合にチェック</p>
+              </TooltipContent>
+            </Tooltip>
           </CardContent>
         </Card>
 

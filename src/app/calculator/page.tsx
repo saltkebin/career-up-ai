@@ -438,9 +438,14 @@ export default function CalculatorPage() {
           <Link href="/" className="text-xl font-bold text-blue-900">
             キャリアアップ助成金 申請支援
           </Link>
-          <Link href="/login">
-            <Button variant="outline">ログイン</Button>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
+              ヘルプ
+            </Link>
+            <Link href="/login">
+              <Button variant="outline">ログイン</Button>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -606,39 +611,67 @@ export default function CalculatorPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid md:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-gray-50 p-4 rounded">
-                      <div className="text-sm text-gray-600">転換前合計</div>
-                      <div className="text-xl font-bold">
-                        {result.preTotalSalary.toLocaleString()}円
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded">
-                      <div className="text-sm text-gray-600">転換後合計</div>
-                      <div className="text-xl font-bold">
-                        {result.postTotalSalary.toLocaleString()}円
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded">
-                      <div className="text-sm text-gray-600">上昇額</div>
-                      <div className="text-xl font-bold">
-                        {result.increaseAmount >= 0 ? "+" : ""}
-                        {result.increaseAmount.toLocaleString()}円
-                      </div>
-                    </div>
-                    <div
-                      className={`p-4 rounded ${
-                        result.meetsRequirement ? "bg-green-50" : "bg-red-50"
-                      }`}
-                    >
-                      <div className="text-sm text-gray-600">上昇率</div>
-                      <div
-                        className={`text-2xl font-bold ${
-                          result.meetsRequirement ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {result.increaseRate.toFixed(2)}%
-                      </div>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="bg-gray-50 p-4 rounded cursor-help">
+                          <div className="text-sm text-gray-600">転換前合計</div>
+                          <div className="text-xl font-bold">
+                            {result.preTotalSalary.toLocaleString()}円
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>転換前6ヶ月間の対象賃金（基本給+固定手当）の合計額です</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="bg-gray-50 p-4 rounded cursor-help">
+                          <div className="text-sm text-gray-600">転換後合計</div>
+                          <div className="text-xl font-bold">
+                            {result.postTotalSalary.toLocaleString()}円
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>転換後6ヶ月間の対象賃金（基本給+固定手当）の合計額です</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="bg-gray-50 p-4 rounded cursor-help">
+                          <div className="text-sm text-gray-600">上昇額</div>
+                          <div className="text-xl font-bold">
+                            {result.increaseAmount >= 0 ? "+" : ""}
+                            {result.increaseAmount.toLocaleString()}円
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>転換後合計から転換前合計を差し引いた金額です</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={`p-4 rounded cursor-help ${
+                            result.meetsRequirement ? "bg-green-50" : "bg-red-50"
+                          }`}
+                        >
+                          <div className="text-sm text-gray-600">上昇率</div>
+                          <div
+                            className={`text-2xl font-bold ${
+                              result.meetsRequirement ? "text-green-600" : "text-red-600"
+                            }`}
+                          >
+                            {result.increaseRate.toFixed(2)}%
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>上昇額÷転換前合計×100で算出。3%以上で要件を満たします</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
 
                   <p className="text-lg mb-4">{result.message}</p>
@@ -668,12 +701,144 @@ export default function CalculatorPage() {
                       </AlertDescription>
                     </Alert>
                   )}
+
+                  {/* 逆算シミュレーション */}
+                  {!result.meetsRequirement && result.preTotalSalary > 0 && (
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="font-medium text-blue-800 mb-3">3%達成のための逆算シミュレーション</h4>
+                      <div className="grid md:grid-cols-2 gap-4 text-sm">
+                        <div className="bg-white p-3 rounded">
+                          <div className="text-gray-600 mb-1">必要な転換後6ヶ月合計</div>
+                          <div className="text-lg font-bold text-blue-700">
+                            {Math.ceil(result.preTotalSalary * 1.03).toLocaleString()}円
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            (現在: {result.postTotalSalary.toLocaleString()}円)
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="text-gray-600 mb-1">不足額（6ヶ月合計）</div>
+                          <div className="text-lg font-bold text-red-600">
+                            +{Math.ceil(result.preTotalSalary * 1.03 - result.postTotalSalary).toLocaleString()}円
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="text-gray-600 mb-1">月あたり不足額</div>
+                          <div className="text-lg font-bold text-orange-600">
+                            +{Math.ceil((result.preTotalSalary * 1.03 - result.postTotalSalary) / 6).toLocaleString()}円/月
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="text-gray-600 mb-1">推奨転換後月額賃金</div>
+                          <div className="text-lg font-bold text-green-600">
+                            {Math.ceil(result.preTotalSalary * 1.03 / 6).toLocaleString()}円/月
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            (現在: {Math.round(result.postTotalSalary / 6).toLocaleString()}円/月)
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-3">
+                        基本給または固定的諸手当を上記金額分増額することで3%要件を達成できます
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
+
+            {/* クイック逆算ツール */}
+            <Card className="mt-6 border-purple-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-xl">🧮</span>
+                  クイック逆算ツール
+                </CardTitle>
+                <CardDescription>
+                  転換前の月額賃金から、3%達成に必要な転換後賃金を即座に計算
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <QuickReverseCalculator />
+              </CardContent>
+            </Card>
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+// クイック逆算計算コンポーネント
+function QuickReverseCalculator() {
+  const [preMonthlySalary, setPreMonthlySalary] = useState<number>(250000);
+  const [targetRate, setTargetRate] = useState<number>(3.5);
+
+  const requiredPostSalary = Math.ceil(preMonthlySalary * (1 + targetRate / 100));
+  const increaseAmount = requiredPostSalary - preMonthlySalary;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid md:grid-cols-2 gap-4">
+        <div>
+          <Label>転換前月額賃金（基本給+固定手当）</Label>
+          <Input
+            type="number"
+            value={preMonthlySalary || ""}
+            onChange={(e) => setPreMonthlySalary(Number(e.target.value))}
+            placeholder="250000"
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label>目標上昇率 (%)</Label>
+          <Input
+            type="number"
+            step="0.1"
+            value={targetRate || ""}
+            onChange={(e) => setTargetRate(Number(e.target.value))}
+            placeholder="3.5"
+            className="mt-1"
+          />
+          <div className="flex gap-2 mt-2">
+            {[3.0, 3.5, 4.0, 5.0].map(rate => (
+              <Button
+                key={rate}
+                variant={targetRate === rate ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTargetRate(rate)}
+              >
+                {rate}%
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {preMonthlySalary > 0 && (
+        <div className="bg-purple-50 p-4 rounded-lg">
+          <div className="grid md:grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-sm text-gray-600">転換前</div>
+              <div className="text-xl font-bold">{preMonthlySalary.toLocaleString()}円</div>
+            </div>
+            <div className="flex items-center justify-center">
+              <span className="text-2xl">→</span>
+            </div>
+            <div>
+              <div className="text-sm text-gray-600">必要な転換後</div>
+              <div className="text-xl font-bold text-purple-700">{requiredPostSalary.toLocaleString()}円</div>
+            </div>
+          </div>
+          <div className="text-center mt-4 p-3 bg-white rounded">
+            <span className="text-gray-600">必要な昇給額: </span>
+            <span className="text-lg font-bold text-green-600">+{increaseAmount.toLocaleString()}円/月</span>
+          </div>
+          <p className="text-xs text-purple-600 text-center mt-2">
+            ※ 余裕を持って3.5%〜4%の上昇率を目指すことをお勧めします
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const {
     clients,
     applications,
+    loading: dataLoading,
     addClient,
     updateClient,
     deleteClient,
@@ -98,8 +100,12 @@ export default function DashboardPage() {
       case "書類作成中":
         return "bg-blue-100 text-blue-700";
       case "申請済み":
-        return "bg-green-100 text-green-700";
+        return "bg-yellow-100 text-yellow-700";
+      case "審査中":
+        return "bg-orange-100 text-orange-700";
       case "承認済み":
+        return "bg-green-100 text-green-700";
+      case "支給済み":
         return "bg-emerald-100 text-emerald-700";
       case "不承認":
         return "bg-red-100 text-red-700";
@@ -134,10 +140,15 @@ export default function DashboardPage() {
   };
 
   // ステータス変更
-  const handleStatusChange = (newStatus: Application['status']) => {
+  const handleStatusChange = async (newStatus: Application['status']) => {
     if (selectedApplication) {
-      updateApplication(selectedApplication.id, { status: newStatus });
-      setSelectedApplication({ ...selectedApplication, status: newStatus });
+      try {
+        await updateApplication(selectedApplication.id, { status: newStatus });
+        setSelectedApplication({ ...selectedApplication, status: newStatus });
+      } catch (error) {
+        console.error("ステータス更新エラー:", error);
+        alert("ステータスの更新に失敗しました");
+      }
     }
   };
 
@@ -154,16 +165,21 @@ export default function DashboardPage() {
   };
 
   // 削除実行
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (deleteTarget) {
-      if (deleteTarget.type === 'application') {
-        deleteApplication(deleteTarget.id);
-        setIsDetailModalOpen(false);
-      } else {
-        deleteClient(deleteTarget.id);
-        if (selectedClient?.id === deleteTarget.id) {
-          setSelectedClient(null);
+      try {
+        if (deleteTarget.type === 'application') {
+          await deleteApplication(deleteTarget.id);
+          setIsDetailModalOpen(false);
+        } else {
+          await deleteClient(deleteTarget.id);
+          if (selectedClient?.id === deleteTarget.id) {
+            setSelectedClient(null);
+          }
         }
+      } catch (error) {
+        console.error("削除エラー:", error);
+        alert("削除に失敗しました");
       }
     }
     setIsDeleteConfirmOpen(false);
@@ -171,7 +187,7 @@ export default function DashboardPage() {
   };
 
   // 新規申請登録
-  const handleNewApplication = () => {
+  const handleNewApplication = async () => {
     if (!newAppForm.clientId || !newAppForm.workerName || !newAppForm.conversionDate || !newAppForm.applicationDeadline) {
       alert("必須項目を入力してください");
       return;
@@ -189,29 +205,35 @@ export default function DashboardPage() {
       : (newAppForm.isPriorityTarget ? 900000 : 600000);
     const phase2 = newAppForm.isPriorityTarget ? phase1 : 0;
 
-    addApplication({
-      clientId: newAppForm.clientId,
-      workerName: newAppForm.workerName,
-      workerNameKana: newAppForm.workerNameKana || undefined,
-      birthDate: newAppForm.birthDate || undefined,
-      gender: newAppForm.gender || undefined,
-      hireDate: newAppForm.hireDate || undefined,
-      conversionDate: newAppForm.conversionDate,
-      conversionType: newAppForm.conversionType,
-      applicationDeadline: newAppForm.applicationDeadline,
-      status: newAppForm.status,
-      isPriorityTarget: newAppForm.isPriorityTarget,
-      priorityCategory: newAppForm.isPriorityTarget ? newAppForm.priorityCategory : null,
-      priorityReason: newAppForm.isPriorityTarget ? newAppForm.priorityReason : undefined,
-      preSalary: newAppForm.preSalary || undefined,
-      postSalary: newAppForm.postSalary || undefined,
-      salaryIncreaseRate: salaryIncreaseRate || undefined,
-      estimatedAmount: { phase1, phase2, total: phase1 + phase2 },
-      notes: newAppForm.notes || undefined,
-    });
+    try {
+      await addApplication({
+        clientId: newAppForm.clientId,
+        workerName: newAppForm.workerName,
+        workerNameKana: newAppForm.workerNameKana || undefined,
+        birthDate: newAppForm.birthDate || undefined,
+        gender: newAppForm.gender || undefined,
+        hireDate: newAppForm.hireDate || undefined,
+        conversionDate: newAppForm.conversionDate,
+        conversionType: newAppForm.conversionType,
+        applicationDeadline: newAppForm.applicationDeadline,
+        status: newAppForm.status,
+        isPriorityTarget: newAppForm.isPriorityTarget,
+        priorityCategory: newAppForm.isPriorityTarget ? newAppForm.priorityCategory : null,
+        priorityReason: newAppForm.isPriorityTarget ? newAppForm.priorityReason : undefined,
+        preSalary: newAppForm.preSalary || undefined,
+        postSalary: newAppForm.postSalary || undefined,
+        salaryIncreaseRate: salaryIncreaseRate || undefined,
+        estimatedAmount: { phase1, phase2, total: phase1 + phase2 },
+        notes: newAppForm.notes || undefined,
+        phase: 1, // 新規申請は常に第1期
+      });
 
-    setIsNewApplicationModalOpen(false);
-    resetNewAppForm();
+      setIsNewApplicationModalOpen(false);
+      resetNewAppForm();
+    } catch (error) {
+      console.error("申請登録エラー:", error);
+      alert("申請の登録に失敗しました");
+    }
   };
 
   const resetNewAppForm = () => {
@@ -236,23 +258,28 @@ export default function DashboardPage() {
   };
 
   // 新規顧問先登録
-  const handleNewClient = () => {
+  const handleNewClient = async () => {
     if (!newClientForm.companyName) {
       alert("企業名を入力してください");
       return;
     }
 
-    addClient({
-      companyName: newClientForm.companyName,
-      registrationNumber: newClientForm.registrationNumber || undefined,
-      isSmallBusiness: newClientForm.isSmallBusiness,
-      careerUpManager: newClientForm.careerUpManager || undefined,
-      hasEmploymentRules: newClientForm.hasEmploymentRules,
-      careerUpPlanSubmittedAt: newClientForm.careerUpPlanSubmittedAt || undefined,
-    });
+    try {
+      await addClient({
+        companyName: newClientForm.companyName,
+        registrationNumber: newClientForm.registrationNumber || undefined,
+        isSmallBusiness: newClientForm.isSmallBusiness,
+        careerUpManager: newClientForm.careerUpManager || undefined,
+        hasEmploymentRules: newClientForm.hasEmploymentRules,
+        careerUpPlanSubmittedAt: newClientForm.careerUpPlanSubmittedAt || undefined,
+      });
 
-    setIsNewClientModalOpen(false);
-    resetNewClientForm();
+      setIsNewClientModalOpen(false);
+      resetNewClientForm();
+    } catch (error) {
+      console.error("顧問先登録エラー:", error);
+      alert("顧問先の登録に失敗しました");
+    }
   };
 
   const resetNewClientForm = () => {
@@ -267,21 +294,26 @@ export default function DashboardPage() {
   };
 
   // 顧問先編集
-  const handleEditClient = () => {
+  const handleEditClient = async () => {
     if (selectedClient && newClientForm.companyName) {
-      updateClient(selectedClient.id, {
-        companyName: newClientForm.companyName,
-        registrationNumber: newClientForm.registrationNumber || undefined,
-        isSmallBusiness: newClientForm.isSmallBusiness,
-        careerUpManager: newClientForm.careerUpManager || undefined,
-        hasEmploymentRules: newClientForm.hasEmploymentRules,
-        careerUpPlanSubmittedAt: newClientForm.careerUpPlanSubmittedAt || undefined,
-      });
-      setSelectedClient({
-        ...selectedClient,
-        ...newClientForm,
-      });
-      setIsEditClientModalOpen(false);
+      try {
+        await updateClient(selectedClient.id, {
+          companyName: newClientForm.companyName,
+          registrationNumber: newClientForm.registrationNumber || undefined,
+          isSmallBusiness: newClientForm.isSmallBusiness,
+          careerUpManager: newClientForm.careerUpManager || undefined,
+          hasEmploymentRules: newClientForm.hasEmploymentRules,
+          careerUpPlanSubmittedAt: newClientForm.careerUpPlanSubmittedAt || undefined,
+        });
+        setSelectedClient({
+          ...selectedClient,
+          ...newClientForm,
+        });
+        setIsEditClientModalOpen(false);
+      } catch (error) {
+        console.error("顧問先更新エラー:", error);
+        alert("顧問先の更新に失敗しました");
+      }
     }
   };
 
@@ -299,7 +331,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || dataLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>読み込み中...</p>
@@ -324,6 +356,9 @@ export default function DashboardPage() {
             キャリアアップ助成金 申請支援
           </Link>
           <div className="flex items-center gap-4">
+            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
+              ヘルプ
+            </Link>
             <span className="text-sm text-gray-600">{officeName}</span>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               ログアウト
@@ -357,129 +392,290 @@ export default function DashboardPage() {
           </Alert>
         )}
 
+        {/* 第2期申請リマインダー */}
+        {(() => {
+          // 第1期が承認済み・支給済みで、重点支援対象者（第2期対象）の申請を検索
+          const phase2Candidates = applications.filter(app =>
+            app.isPriorityTarget &&
+            app.phase === 1 &&
+            (app.status === 'approved' || app.status === 'paid') &&
+            !app.phase2DeadlineNotified
+          );
+
+          if (phase2Candidates.length === 0) return null;
+
+          return (
+            <Alert className="mb-6 border-purple-300 bg-purple-50">
+              <AlertTitle className="text-purple-800">第2期申請の準備をお忘れなく</AlertTitle>
+              <AlertDescription className="text-purple-700">
+                <p className="mb-2">
+                  以下の重点支援対象者は第1期が完了し、第2期申請の対象です。
+                  転換後1年経過後に第2期申請が可能になります。
+                </p>
+                {phase2Candidates.slice(0, 3).map((app) => {
+                  const client = getClientById(app.clientId);
+                  // 転換日から1年後を第2期申請開始日として計算
+                  const conversionDate = new Date(app.conversionDate);
+                  const phase2StartDate = new Date(conversionDate);
+                  phase2StartDate.setFullYear(phase2StartDate.getFullYear() + 1);
+
+                  return (
+                    <div key={app.id} className="mt-1">
+                      <strong>{client?.companyName}</strong> - {app.workerName}さん
+                      （第2期申請開始: {phase2StartDate.toISOString().slice(0, 10)}頃）
+                    </div>
+                  );
+                })}
+                {phase2Candidates.length > 3 && (
+                  <div className="mt-1 text-sm">他 {phase2Candidates.length - 3} 件</div>
+                )}
+                <p className="text-xs mt-2">
+                  ※ 第2期は転換後1年経過〜2ヶ月以内に申請が必要です
+                </p>
+              </AlertDescription>
+            </Alert>
+          );
+        })()}
+
         {/* クイックアクション */}
         <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-          <Link href="/calculator">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="text-2xl">📊</span>
-                  賃金計算
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">3%賃金上昇率を計算</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/calculator">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="text-2xl">📊</span>
+                      賃金計算
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">3%賃金上昇率を計算</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>転換前後6ヶ月の賃金を入力し、3%以上の賃金上昇要件を満たしているか確認できます</p>
+            </TooltipContent>
+          </Tooltip>
 
-          <Link href="/eligibility">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="text-2xl">✅</span>
-                  要件チェック
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">支給要件を確認</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/eligibility">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="text-2xl">✅</span>
+                      要件チェック
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">支給要件を確認</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>キャリアアップ計画届出時期、雇用期間、賃金要件など全ての支給要件をチェックします</p>
+            </TooltipContent>
+          </Tooltip>
 
-          <Link href="/documents/check">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full border-blue-200 bg-blue-50">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="text-2xl">📋</span>
-                  書類チェック
-                  <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded">NEW</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">必要書類を確認</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/documents/check">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full border-blue-200 bg-blue-50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="text-2xl">📋</span>
+                      書類チェック
+                      <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded">NEW</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">必要書類を確認</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>申請に必要な書類（賃金台帳、出勤簿、労働条件通知書など）の準備状況を確認できます</p>
+            </TooltipContent>
+          </Tooltip>
 
-          <Link href="/guide">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="text-2xl">📚</span>
-                  ガイド
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">よくある誤解と対策</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/guide">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="text-2xl">📚</span>
+                      ガイド
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">よくある誤解と対策</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>申請でよくある失敗パターンと対策を解説。事前に確認して申請ミスを防ぎましょう</p>
+            </TooltipContent>
+          </Tooltip>
 
-          <Card
-            className="hover:shadow-md transition-shadow cursor-pointer h-full"
-            onClick={() => {
-              resetNewAppForm();
-              if (selectedClient) {
-                setNewAppForm(prev => ({ ...prev, clientId: selectedClient.id }));
-              }
-              setIsNewApplicationModalOpen(true);
-            }}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <span className="text-2xl">➕</span>
-                新規申請
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">新しい申請を登録</p>
-            </CardContent>
-          </Card>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card
+                className="hover:shadow-md transition-shadow cursor-pointer h-full"
+                onClick={() => {
+                  resetNewAppForm();
+                  if (selectedClient) {
+                    setNewAppForm(prev => ({ ...prev, clientId: selectedClient.id }));
+                  }
+                  setIsNewApplicationModalOpen(true);
+                }}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span className="text-2xl">➕</span>
+                    新規申請
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600">新しい申請を登録</p>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>新しい労働者の正社員転換申請を登録します。転換日から2ヶ月以内に申請が必要です</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/calendar">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full border-orange-200 bg-orange-50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="text-2xl">📅</span>
+                      カレンダー
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">期限を視覚的に確認</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>申請期限をカレンダー形式で表示。期限間近の申請を色分けで確認できます</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/settings">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="text-2xl">⚙️</span>
+                      設定
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">バックアップ・復元</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>データのバックアップ（JSON/CSV）とインポート、データ管理を行えます</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* 統計サマリー */}
         <div className="grid md:grid-cols-5 gap-4 mb-8">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{clients.length}</div>
-                <div className="text-sm text-gray-600">顧問先企業</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{applications.length}</div>
-                <div className="text-sm text-gray-600">全申請件数</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-red-600">{allUrgent.length}</div>
-                <div className="text-sm text-gray-600">期限間近</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600">{allPriority.length}</div>
-                <div className="text-sm text-gray-600">重点支援対象</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-600">¥{totalAmount.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">想定助成金総額</div>
-              </div>
-            </CardContent>
-          </Card>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card className="cursor-help">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-600">{clients.length}</div>
+                    <div className="text-sm text-gray-600">顧問先企業</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>登録されている顧問先企業の総数です</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card className="cursor-help">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-600">{applications.length}</div>
+                    <div className="text-sm text-gray-600">全申請件数</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>全顧問先の申請件数の合計です（全ステータス含む）</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card className="cursor-help">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-red-600">{allUrgent.length}</div>
+                    <div className="text-sm text-gray-600">期限間近</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>申請期限まで14日以内の申請件数です。早急に対応が必要です</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card className="cursor-help">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-purple-600">{allPriority.length}</div>
+                    <div className="text-sm text-gray-600">重点支援対象</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>2025年度の重点支援対象者（カテゴリA/B/C）に該当する申請件数です。第2期申請も対象になります</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card className="cursor-help">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-600">¥{totalAmount.toLocaleString()}</div>
+                    <div className="text-sm text-gray-600">想定助成金総額</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>全申請の想定助成金額の合計です（第1期・第2期含む）</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* メインコンテンツ: 会社選択 → 労働者一覧 */}
@@ -621,10 +817,38 @@ export default function DashboardPage() {
                             {!selectedClient && (
                               <th className="text-left py-3 px-2 font-medium">企業</th>
                             )}
-                            <th className="text-left py-3 px-2 font-medium">残り日数</th>
-                            <th className="text-left py-3 px-2 font-medium">ステータス</th>
-                            <th className="text-left py-3 px-2 font-medium">重点</th>
-                            <th className="text-left py-3 px-2 font-medium">想定額</th>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <th className="text-left py-3 px-2 font-medium cursor-help">残り日数</th>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>申請期限までの残り日数。赤色は14日以内で緊急対応が必要です</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <th className="text-left py-3 px-2 font-medium cursor-help">ステータス</th>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>準備中→書類作成中→申請済み→審査中→承認済み→支給済み</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <th className="text-left py-3 px-2 font-medium cursor-help">重点</th>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>2025年度重点支援対象者のカテゴリ（A/B/C）。第2期申請で追加助成金が得られます</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <th className="text-left py-3 px-2 font-medium cursor-help">想定額</th>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>企業規模と重点支援対象者区分から算出した想定助成金額（第1期+第2期）</p>
+                              </TooltipContent>
+                            </Tooltip>
                             <th className="text-left py-3 px-2 font-medium">操作</th>
                           </tr>
                         </thead>
@@ -690,6 +914,7 @@ export default function DashboardPage() {
 
             {/* 選択した会社の詳細情報 */}
             {selectedClient && (
+              <>
               <Card className="mt-6">
                 <CardHeader>
                   <div className="flex justify-between items-center">
@@ -750,6 +975,79 @@ export default function DashboardPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* 転換前準備チェックリスト */}
+              <Card className="mt-6 border-purple-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span>📋</span> 転換前準備チェックリスト
+                  </CardTitle>
+                  <CardDescription>
+                    申請前に必要な準備状況を確認・管理できます
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {[
+                      { key: 'careerUpPlanSubmitted', label: 'キャリアアップ計画届出済み' },
+                      { key: 'employmentRulesReady', label: '就業規則整備済み' },
+                      { key: 'regularEmployeeDefinitionReady', label: '正社員定義の明確化' },
+                      { key: 'wageTableReady', label: '賃金規程整備済み' },
+                      { key: 'trialPeriodChecked', label: '試用期間の確認' },
+                      { key: 'socialInsuranceReady', label: '社会保険加入手続き確認' },
+                      { key: 'laborConditionsNotified', label: '労働条件通知書準備済み' },
+                      { key: 'sixMonthEmploymentConfirmed', label: '6ヶ月以上雇用確認' },
+                    ].map(item => {
+                      const checklist = selectedClient.preparationChecklist || {};
+                      const isChecked = checklist[item.key as keyof typeof checklist] || false;
+                      return (
+                        <label
+                          key={item.key}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-green-50 border-green-300'
+                              : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={async (e) => {
+                              const newChecklist = {
+                                ...selectedClient.preparationChecklist,
+                                [item.key]: e.target.checked,
+                              };
+                              try {
+                                await updateClient(selectedClient.id, {
+                                  preparationChecklist: newChecklist,
+                                });
+                                setSelectedClient({
+                                  ...selectedClient,
+                                  preparationChecklist: newChecklist,
+                                });
+                              } catch (error) {
+                                console.error("チェックリスト更新エラー:", error);
+                              }
+                            }}
+                            className="w-5 h-5 rounded"
+                          />
+                          <span className={`text-sm ${isChecked ? 'text-green-700' : 'text-gray-700'}`}>
+                            {item.label}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <div className="text-sm text-blue-700">
+                      完了: {
+                        Object.values(selectedClient.preparationChecklist || {}).filter(Boolean).length
+                      } / 8 項目
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              </>
             )}
           </div>
         </div>
@@ -837,7 +1135,9 @@ export default function DashboardPage() {
                           <SelectItem value="preparing">準備中</SelectItem>
                           <SelectItem value="documents_ready">書類作成中</SelectItem>
                           <SelectItem value="submitted">申請済み</SelectItem>
+                          <SelectItem value="under_review">審査中</SelectItem>
                           <SelectItem value="approved">承認済み</SelectItem>
+                          <SelectItem value="paid">支給済み</SelectItem>
                           <SelectItem value="rejected">不承認</SelectItem>
                         </SelectContent>
                       </Select>
@@ -925,6 +1225,47 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* 書類チェック結果 */}
+              <div>
+                <h3 className="font-medium mb-3 text-gray-700 flex items-center gap-2">
+                  書類チェック状況
+                  <Link href="/documents/check">
+                    <Button variant="link" size="sm" className="text-xs p-0 h-auto">
+                      チェックする →
+                    </Button>
+                  </Link>
+                </h3>
+                {selectedApplication.documentCheckResult ? (
+                  <div className="bg-gray-50 p-3 rounded text-sm">
+                    <div className="flex justify-between items-center mb-2">
+                      <span>確認日: {selectedApplication.documentCheckResult.checkedAt}</span>
+                      <span className={
+                        selectedApplication.documentCheckResult.completedCount ===
+                        selectedApplication.documentCheckResult.totalCount
+                          ? 'text-green-600 font-medium'
+                          : 'text-orange-600 font-medium'
+                      }>
+                        {selectedApplication.documentCheckResult.completedCount} / {selectedApplication.documentCheckResult.totalCount} 完了
+                      </span>
+                    </div>
+                    {selectedApplication.documentCheckResult.missingDocuments.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-red-600 text-xs mb-1">不足書類:</div>
+                        <ul className="text-xs text-red-600 list-disc list-inside">
+                          {selectedApplication.documentCheckResult.missingDocuments.map((doc, i) => (
+                            <li key={i}>{doc}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 p-3 rounded text-sm text-gray-500">
+                    まだ書類チェックを実施していません
+                  </div>
+                )}
               </div>
 
               {/* メモ */}
@@ -1086,7 +1427,9 @@ export default function DashboardPage() {
                     <SelectItem value="preparing">準備中</SelectItem>
                     <SelectItem value="documents_ready">書類作成中</SelectItem>
                     <SelectItem value="submitted">申請済み</SelectItem>
+                    <SelectItem value="under_review">審査中</SelectItem>
                     <SelectItem value="approved">承認済み</SelectItem>
+                    <SelectItem value="paid">支給済み</SelectItem>
                     <SelectItem value="rejected">不承認</SelectItem>
                   </SelectContent>
                 </Select>
