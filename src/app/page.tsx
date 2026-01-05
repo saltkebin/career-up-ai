@@ -24,9 +24,9 @@ export default function Home() {
             ミスなくサポートします
           </p>
           <div className="flex gap-4 justify-center">
-            <Link href="/register">
+            <Link href="/login">
               <Button size="lg" className="text-lg px-8">
-                無料で始める
+                ログイン
               </Button>
             </Link>
             <Link href="/calculator">
