@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,41 +12,33 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
-  const [email, setEmail] = useState("");
+  const { isAuthenticated, loading: authLoading, login } = useAuth();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   // 既にログインしている場合はダッシュボードへリダイレクト
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && isAuthenticated) {
       router.push("/dashboard");
     }
-  }, [user, authLoading, router]);
+  }, [isAuthenticated, authLoading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
+    // シンプルなパスワード認証
+    const success = login(password);
+
+    if (success) {
       router.push("/dashboard");
-    } catch (err) {
-      console.error(err);
-      if (err instanceof Error) {
-        if (err.message.includes("invalid-credential")) {
-          setError("メールアドレスまたはパスワードが正しくありません");
-        } else if (err.message.includes("too-many-requests")) {
-          setError("ログイン試行回数が多すぎます。しばらく待ってから再度お試しください");
-        } else {
-          setError("ログインに失敗しました。もう一度お試しください");
-        }
-      }
-    } finally {
-      setLoading(false);
+    } else {
+      setError("パスワードが正しくありません");
     }
+
+    setLoading(false);
   };
 
   // 認証状態確認中は読み込み表示
@@ -61,19 +51,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <Link href="/" className="text-xl font-bold text-blue-900 mb-4 block">
-            キャリアアップ助成金 申請支援
-          </Link>
-          <CardTitle>ログイン</CardTitle>
-          <CardDescription>
-            アカウントにログインして申請管理を始めましょう
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center space-y-4">
+          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+            <span className="text-3xl">📋</span>
+          </div>
+          <div>
+            <CardTitle className="text-2xl text-blue-900">
+              キャリアアップ助成金
+            </CardTitle>
+            <CardTitle className="text-lg text-blue-700">
+              申請支援システム
+            </CardTitle>
+          </div>
+          <CardDescription className="text-base">
+            パスワードを入力してログインしてください
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-6">
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -81,43 +78,33 @@ export default function LoginPage() {
             )}
 
             <div>
-              <Label htmlFor="email">メールアドレス</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="example@company.co.jp"
-                required
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="password">パスワード</Label>
+              <Label htmlFor="password" className="text-base">パスワード</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="パスワードを入力"
                 required
-                className="mt-1"
+                className="mt-2 h-12 text-lg"
+                autoFocus
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full h-12 text-lg" disabled={loading}>
               {loading ? "ログイン中..." : "ログイン"}
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm">
-            <p className="text-gray-600">
-              アカウントをお持ちでない方は
-              <Link href="/register" className="text-blue-600 hover:underline ml-1">
-                新規登録
-              </Link>
-            </p>
+          <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+            <h3 className="font-medium text-gray-700 mb-2">このシステムでできること</h3>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>✅ 3%賃金上昇率の自動計算</li>
+              <li>✅ 支給要件のチェック</li>
+              <li>✅ 重点支援対象者の判定</li>
+              <li>✅ 申請期限の管理</li>
+              <li>✅ 必要書類のチェックリスト</li>
+            </ul>
           </div>
 
           <div className="mt-4 text-center">

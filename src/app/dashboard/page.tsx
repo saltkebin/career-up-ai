@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,134 +35,118 @@ interface Application {
   };
 }
 
-// デモ用のサンプルデータ
-const demoClients: Client[] = [
+// サンプルデータ（テスト用）
+const sampleClients: Client[] = [
   {
-    id: "demo-client-1",
-    companyName: "株式会社サンプル",
-    registrationNumber: "1301-000000-0",
+    id: "client-1",
+    companyName: "株式会社テックフォワード",
+    registrationNumber: "1301-123456-7",
     isSmallBusiness: true,
     careerUpManager: "山田 太郎",
     hasEmploymentRules: true,
   },
+  {
+    id: "client-2",
+    companyName: "有限会社さくら製作所",
+    registrationNumber: "1302-234567-8",
+    isSmallBusiness: true,
+    careerUpManager: "佐藤 花子",
+    hasEmploymentRules: true,
+  },
+  {
+    id: "client-3",
+    companyName: "合同会社グリーンテック",
+    registrationNumber: "1303-345678-9",
+    isSmallBusiness: true,
+    careerUpManager: "田中 一郎",
+    hasEmploymentRules: false,
+  },
 ];
 
-const demoApplications: Application[] = [
+const sampleApplications: Application[] = [
   {
-    id: "demo-1",
-    clientId: "demo-client-1",
-    workerName: "サンプル 太郎",
+    id: "app-1",
+    clientId: "client-1",
+    workerName: "田中 一郎",
     conversionDate: "2025-04-01",
-    applicationDeadline: "2025-12-25",
+    applicationDeadline: "2026-01-07",
     status: "準備中",
     daysRemaining: 2,
+    isPriorityTarget: false,
+    priorityCategory: null,
+    scenario: "期限間近・緊急対応必要",
+    estimatedAmount: { phase1: 800000, phase2: 0, total: 800000 },
+  },
+  {
+    id: "app-2",
+    clientId: "client-1",
+    workerName: "鈴木 花子",
+    conversionDate: "2025-06-01",
+    applicationDeadline: "2026-03-10",
+    status: "書類作成中",
+    daysRemaining: 64,
+    isPriorityTarget: false,
+    priorityCategory: null,
+    scenario: "順調に進行中",
+    estimatedAmount: { phase1: 800000, phase2: 0, total: 800000 },
+  },
+  {
+    id: "app-3",
+    clientId: "client-2",
+    workerName: "山田 美咲",
+    conversionDate: "2025-01-01",
+    applicationDeadline: "2026-02-19",
+    status: "書類作成中",
+    daysRemaining: 45,
+    isPriorityTarget: true,
+    priorityCategory: "A",
+    scenario: "重点支援対象者A（母子家庭）",
+    estimatedAmount: { phase1: 1200000, phase2: 1200000, total: 2400000 },
+  },
+  {
+    id: "app-4",
+    clientId: "client-2",
+    workerName: "高橋 健太",
+    conversionDate: "2025-03-01",
+    applicationDeadline: "2026-02-04",
+    status: "準備中",
+    daysRemaining: 30,
+    isPriorityTarget: true,
+    priorityCategory: "B",
+    scenario: "重点支援対象者B（5年間に5回離職）",
+    estimatedAmount: { phase1: 1200000, phase2: 1200000, total: 2400000 },
+  },
+  {
+    id: "app-5",
+    clientId: "client-3",
+    workerName: "加藤 正明",
+    conversionDate: "2025-02-01",
+    applicationDeadline: "2026-02-12",
+    status: "書類作成中",
+    daysRemaining: 38,
+    isPriorityTarget: true,
+    priorityCategory: "C",
+    scenario: "重点支援対象者C（就職氷河期世代）",
+    estimatedAmount: { phase1: 1200000, phase2: 1200000, total: 2400000 },
   },
 ];
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading, logout } = useAuth();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [applications, setApplications] = useState<Application[]>([]);
+  const { isAuthenticated, loading, logout, officeName } = useAuth();
+  const [clients] = useState<Client[]>(sampleClients);
+  const [applications] = useState<Application[]>(sampleApplications);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !isAuthenticated) {
       router.push("/login");
-      return;
     }
+  }, [isAuthenticated, loading, router]);
 
-    const fetchData = async () => {
-      if (!user) return;
-
-      try {
-        // 顧問先企業を取得
-        const clientsRef = collection(db, "clients");
-        const clientsQuery = query(
-          clientsRef,
-          where("officeId", "==", user.uid)
-        );
-        const clientsSnapshot = await getDocs(clientsQuery);
-
-        // 申請データを取得
-        const applicationsRef = collection(db, "applications");
-        const appsQuery = query(
-          applicationsRef,
-          where("createdBy", "==", user.uid)
-        );
-        const appsSnapshot = await getDocs(appsQuery);
-
-        if (clientsSnapshot.empty) {
-          // データがない場合はデモデータを表示
-          setClients(demoClients);
-          setApplications(demoApplications);
-        } else {
-          // 顧問先企業をマッピング
-          const clientsList: Client[] = clientsSnapshot.docs.map((doc) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              companyName: data.companyName || '名前未設定',
-              registrationNumber: data.registrationNumber,
-              isSmallBusiness: data.isSmallBusiness ?? true,
-              careerUpManager: data.careerUpManager,
-              hasEmploymentRules: data.hasEmploymentRules ?? false,
-            };
-          });
-          setClients(clientsList);
-
-          // 申請データをマッピング
-          const appsList: Application[] = appsSnapshot.docs.map((doc) => {
-            const data = doc.data();
-            const conversionDate = data.conversionDate instanceof Timestamp
-              ? data.conversionDate.toDate().toISOString().split('T')[0]
-              : data.conversionDate;
-            const applicationDeadline = typeof data.applicationDeadline === 'string'
-              ? data.applicationDeadline
-              : data.phase1?.deadline instanceof Timestamp
-                ? data.phase1.deadline.toDate().toISOString().split('T')[0]
-                : '';
-
-            return {
-              id: doc.id,
-              clientId: data.clientId,
-              workerName: data.workerName || '名前未設定',
-              conversionDate,
-              applicationDeadline,
-              status: data.status || '準備中',
-              daysRemaining: data.daysRemaining ?? 0,
-              isPriorityTarget: data.isPriorityTarget,
-              priorityCategory: data.priorityCategory,
-              scenario: data.scenario,
-              estimatedAmount: data.estimatedAmount,
-            };
-          });
-          // 残り日数でソート
-          appsList.sort((a, b) => a.daysRemaining - b.daysRemaining);
-          setApplications(appsList);
-        }
-      } catch (error) {
-        console.error("データ取得エラー:", error);
-        setClients(demoClients);
-        setApplications(demoApplications);
-      } finally {
-        setDataLoading(false);
-      }
-    };
-
-    if (user) {
-      fetchData();
-    }
-  }, [user, loading, router]);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      router.push("/");
-    } catch (error) {
-      console.error("ログアウトエラー:", error);
-    }
+  const handleLogout = () => {
+    logout();
+    router.push("/");
   };
 
   const getStatusColor = (status: string) => {
@@ -205,7 +187,7 @@ export default function DashboardPage() {
     return { count: clientApps.length, urgent, expired, total };
   };
 
-  if (loading || dataLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>読み込み中...</p>
@@ -213,9 +195,12 @@ export default function DashboardPage() {
     );
   }
 
+  if (!isAuthenticated) {
+    return null;
+  }
+
   // 全体の統計
   const allUrgent = applications.filter((app) => app.daysRemaining >= 0 && app.daysRemaining <= 14);
-  const allExpired = applications.filter((app) => app.daysRemaining < 0);
   const allPriority = applications.filter((app) => app.isPriorityTarget);
   const totalAmount = applications.reduce((sum, app) => sum + (app.estimatedAmount?.total || 800000), 0);
 
@@ -227,9 +212,7 @@ export default function DashboardPage() {
             キャリアアップ助成金 申請支援
           </Link>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              {user?.displayName || user?.email}
-            </span>
+            <span className="text-sm text-gray-600">{officeName}</span>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               ログアウト
             </Button>
@@ -387,61 +370,54 @@ export default function DashboardPage() {
                 <CardDescription>企業を選択して申請を表示</CardDescription>
               </CardHeader>
               <CardContent>
-                {clients.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>顧問先企業がありません</p>
-                    <Button className="mt-4" size="sm">企業を追加</Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {/* 全社表示ボタン */}
-                    <button
-                      onClick={() => setSelectedClient(null)}
-                      className={`w-full text-left p-3 rounded-lg border transition-all ${
-                        selectedClient === null
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="font-medium">すべての企業</div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        {applications.length} 件の申請
-                      </div>
-                    </button>
+                <div className="space-y-2">
+                  {/* 全社表示ボタン */}
+                  <button
+                    onClick={() => setSelectedClient(null)}
+                    className={`w-full text-left p-3 rounded-lg border transition-all ${
+                      selectedClient === null
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="font-medium">すべての企業</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {applications.length} 件の申請
+                    </div>
+                  </button>
 
-                    {/* 企業リスト */}
-                    {clients.map((client) => {
-                      const stats = getClientStats(client.id);
-                      return (
-                        <button
-                          key={client.id}
-                          onClick={() => setSelectedClient(client)}
-                          className={`w-full text-left p-3 rounded-lg border transition-all ${
-                            selectedClient?.id === client.id
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="font-medium">{client.companyName}</div>
-                              <div className="text-xs text-gray-500 mt-0.5">
-                                {client.isSmallBusiness ? '中小企業' : '大企業'}
-                                {client.careerUpManager && ` • ${client.careerUpManager}`}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-medium">{stats.count} 件</div>
-                              {stats.urgent > 0 && (
-                                <div className="text-xs text-red-600">{stats.urgent} 件期限間近</div>
-                              )}
+                  {/* 企業リスト */}
+                  {clients.map((client) => {
+                    const stats = getClientStats(client.id);
+                    return (
+                      <button
+                        key={client.id}
+                        onClick={() => setSelectedClient(client)}
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${
+                          selectedClient?.id === client.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium">{client.companyName}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {client.isSmallBusiness ? '中小企業' : '大企業'}
+                              {client.careerUpManager && ` • ${client.careerUpManager}`}
                             </div>
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                          <div className="text-right">
+                            <div className="text-sm font-medium">{stats.count} 件</div>
+                            {stats.urgent > 0 && (
+                              <div className="text-xs text-red-600">{stats.urgent} 件期限間近</div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
