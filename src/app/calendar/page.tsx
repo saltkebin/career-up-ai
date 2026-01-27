@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useData, Application } from "@/contexts/DataContext";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
 
 export default function CalendarPage() {
   const router = useRouter();
-  const { isAuthenticated, loading: authLoading, logout, officeName } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const { applications, loading: dataLoading, getClientById } = useData();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -21,11 +22,6 @@ export default function CalendarPage() {
       router.push("/login");
     }
   }, [isAuthenticated, authLoading, router]);
-
-  const handleLogout = () => {
-    logout();
-    router.push("/");
-  };
 
   // 月の日付を生成
   const calendarDays = useMemo(() => {
@@ -79,10 +75,10 @@ export default function CalendarPage() {
     setCurrentDate(new Date());
   };
 
-  if (authLoading || dataLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>読み込み中...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     );
   }
@@ -108,35 +104,17 @@ export default function CalendarPage() {
     .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/dashboard" className="text-xl font-bold text-blue-900">
-            キャリアアップ助成金 申請支援
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
-              ヘルプ
-            </Link>
-            <span className="text-sm text-gray-600">{officeName}</span>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              ログアウト
-            </Button>
+    <AppLayout>
+      {dataLoading ? (
+        <DashboardSkeleton />
+      ) : (
+        <div className="space-y-6 animate-fade-in">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">申請期限カレンダー</h1>
+            <p className="text-gray-600 text-sm mt-1">申請期限を視覚的に確認できます</p>
           </div>
-        </div>
-      </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm">&larr; ダッシュボードに戻る</Button>
-          </Link>
-        </div>
-
-        <h1 className="text-3xl font-bold mb-2">申請期限カレンダー</h1>
-        <p className="text-gray-600 mb-8">申請期限を視覚的に確認できます</p>
-
-        <div className="grid lg:grid-cols-4 gap-6">
+          <div className="grid lg:grid-cols-4 gap-6">
           {/* カレンダー */}
           <div className="lg:col-span-3">
             <Card>
@@ -369,7 +347,8 @@ export default function CalendarPage() {
             </Card>
           </div>
         </div>
-      </main>
-    </div>
+        </div>
+      )}
+    </AppLayout>
   );
 }

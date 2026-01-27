@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useData } from "@/contexts/DataContext";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,28 +18,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { isAuthenticated, loading: authLoading, logout, officeName } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const { clients, applications, loading: dataLoading, importData, exportData } = useData();
+  const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<{ clients: number; applications: number } | null>(null);
   const [pendingImportData, setPendingImportData] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/login");
     }
   }, [isAuthenticated, authLoading, router]);
-
-  const handleLogout = () => {
-    logout();
-    router.push("/");
-  };
 
   // JSONエクスポート
   const handleExport = () => {
@@ -54,9 +51,9 @@ export default function SettingsPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: 'バックアップファイルをダウンロードしました' });
+      showToast('バックアップファイルをダウンロードしました', 'success');
     } catch {
-      setMessage({ type: 'error', text: 'エクスポートに失敗しました' });
+      showToast('エクスポートに失敗しました', 'error');
     }
   };
 
@@ -79,7 +76,7 @@ export default function SettingsPage() {
         setPendingImportData(content);
         setIsImportConfirmOpen(true);
       } catch {
-        setMessage({ type: 'error', text: '無効なファイル形式です。JSONファイルを選択してください。' });
+        showToast('無効なファイル形式です。JSONファイルを選択してください。', 'error');
       }
     };
     reader.readAsText(file);
@@ -95,12 +92,12 @@ export default function SettingsPage() {
     try {
       const success = await importData(pendingImportData);
       if (success) {
-        setMessage({ type: 'success', text: 'データを復元しました' });
+        showToast('データを復元しました', 'success');
       } else {
-        setMessage({ type: 'error', text: 'データの復元に失敗しました' });
+        showToast('データの復元に失敗しました', 'error');
       }
     } catch {
-      setMessage({ type: 'error', text: 'データの復元に失敗しました' });
+      showToast('データの復元に失敗しました', 'error');
     }
 
     setIsImportConfirmOpen(false);
@@ -114,17 +111,17 @@ export default function SettingsPage() {
       try {
         // 空のJSONをインポートしてデータをクリア
         await importData(JSON.stringify({ clients: [], applications: [] }));
-        setMessage({ type: 'success', text: 'すべてのデータを削除しました' });
+        showToast('すべてのデータを削除しました', 'success');
       } catch {
-        setMessage({ type: 'error', text: 'データの削除に失敗しました' });
+        showToast('データの削除に失敗しました', 'error');
       }
     }
   };
 
-  if (authLoading || dataLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>読み込み中...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     );
   }
@@ -134,45 +131,18 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/dashboard" className="text-xl font-bold text-blue-900">
-            キャリアアップ助成金 申請支援
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
-              ヘルプ
-            </Link>
-            <span className="text-sm text-gray-600">{officeName}</span>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              ログアウト
-            </Button>
+    <AppLayout>
+      {dataLoading ? (
+        <DashboardSkeleton />
+      ) : (
+        <div className="space-y-6 animate-fade-in max-w-4xl">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">設定</h1>
+            <p className="text-gray-600 text-sm mt-1">データのバックアップと復元、各種設定を管理します</p>
           </div>
-        </div>
-      </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm">&larr; ダッシュボードに戻る</Button>
-          </Link>
-        </div>
-
-        <h1 className="text-3xl font-bold mb-2">設定</h1>
-        <p className="text-gray-600 mb-8">データのバックアップと復元、各種設定を管理します</p>
-
-        {message && (
-          <Alert
-            className={`mb-6 ${message.type === 'success' ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}
-          >
-            <AlertTitle>{message.type === 'success' ? '完了' : 'エラー'}</AlertTitle>
-            <AlertDescription>{message.text}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* データバックアップ */}
-        <Card className="mb-6">
+          {/* データバックアップ */}
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span className="text-2xl">💾</span>
@@ -210,8 +180,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* データ復元 */}
-        <Card className="mb-6">
+          {/* データ復元 */}
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span className="text-2xl">📥</span>
@@ -259,8 +229,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* CSVエクスポート */}
-        <Card className="mb-6">
+          {/* CSVエクスポート */}
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span className="text-2xl">📊</span>
@@ -310,8 +280,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* データ管理 */}
-        <Card className="mb-6 border-red-200">
+          {/* データ管理 */}
+          <Card className="border-red-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-700">
               <span className="text-2xl">⚠️</span>
@@ -329,8 +299,9 @@ export default function SettingsPage() {
               すべてのデータを削除
             </Button>
           </CardContent>
-        </Card>
-      </main>
+          </Card>
+        </div>
+      )}
 
       {/* インポート確認モーダル */}
       <Dialog open={isImportConfirmOpen} onOpenChange={setIsImportConfirmOpen}>
@@ -365,7 +336,7 @@ export default function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppLayout>
   );
 
   // CSVエクスポート関数
@@ -448,9 +419,9 @@ export default function SettingsPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setMessage({ type: 'success', text: `${type === 'applications' ? '申請' : '顧問先'}データをエクスポートしました` });
+      showToast(`${type === 'applications' ? '申請' : '顧問先'}データをエクスポートしました`, 'success');
     } catch {
-      setMessage({ type: 'error', text: 'CSVエクスポートに失敗しました' });
+      showToast('CSVエクスポートに失敗しました', 'error');
     }
   }
 

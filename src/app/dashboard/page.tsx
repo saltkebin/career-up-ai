@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useData, Application, Client } from "@/contexts/DataContext";
+import { useToast } from "@/components/ui/toast";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SlidePanel } from "@/components/ui/slide-panel";
+import { DeadlineProgress, StatusBadge } from "@/components/ui/progress-bar";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -25,11 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isAuthenticated, loading: authLoading, logout, officeName } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const {
     clients,
     applications,
@@ -42,15 +44,16 @@ export default function DashboardPage() {
     deleteApplication,
     getClientById,
   } = useData();
+  const { showToast } = useToast();
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isNewApplicationModalOpen, setIsNewApplicationModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
-  const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'client' | 'application'; id: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 新規申請フォームの状態
   const [newAppForm, setNewAppForm] = useState({
@@ -88,55 +91,10 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, authLoading, router]);
 
-  const handleLogout = () => {
-    logout();
-    router.push("/");
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "準備中":
-        return "bg-gray-100 text-gray-700";
-      case "書類作成中":
-        return "bg-blue-100 text-blue-700";
-      case "申請済み":
-        return "bg-yellow-100 text-yellow-700";
-      case "審査中":
-        return "bg-orange-100 text-orange-700";
-      case "承認済み":
-        return "bg-green-100 text-green-700";
-      case "支給済み":
-        return "bg-emerald-100 text-emerald-700";
-      case "不承認":
-        return "bg-red-100 text-red-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
-
-  const getDeadlineColor = (days: number) => {
-    if (days < 0) return "text-red-600 bg-red-50";
-    if (days <= 7) return "text-red-600 bg-red-50";
-    if (days <= 30) return "text-orange-600 bg-orange-50";
-    return "text-green-600 bg-green-50";
-  };
-
-  const getClientApplications = (clientId: string) => {
-    return applications.filter(app => app.clientId === clientId);
-  };
-
-  const getClientStats = (clientId: string) => {
-    const clientApps = getClientApplications(clientId);
-    const urgent = clientApps.filter(app => app.daysRemaining >= 0 && app.daysRemaining <= 14).length;
-    const expired = clientApps.filter(app => app.daysRemaining < 0).length;
-    const total = clientApps.reduce((sum, app) => sum + (app.estimatedAmount?.total || 800000), 0);
-    return { count: clientApps.length, urgent, expired, total };
-  };
-
-  // 詳細モーダルを開く
-  const openDetailModal = (app: Application) => {
+  // 詳細パネルを開く
+  const openDetailPanel = (app: Application) => {
     setSelectedApplication(app);
-    setIsDetailModalOpen(true);
+    setIsDetailPanelOpen(true);
   };
 
   // ステータス変更
@@ -145,59 +103,58 @@ export default function DashboardPage() {
       try {
         await updateApplication(selectedApplication.id, { status: newStatus });
         setSelectedApplication({ ...selectedApplication, status: newStatus });
+        showToast("ステータスを更新しました", "success");
       } catch (error) {
         console.error("ステータス更新エラー:", error);
-        alert("ステータスの更新に失敗しました");
+        showToast("ステータスの更新に失敗しました", "error");
       }
     }
   };
 
-  // 申請削除確認
-  const confirmDeleteApplication = (appId: string) => {
-    setDeleteTarget({ type: 'application', id: appId });
-    setIsDeleteConfirmOpen(true);
-  };
-
-  // 顧問先削除確認
-  const confirmDeleteClient = (clientId: string) => {
-    setDeleteTarget({ type: 'client', id: clientId });
+  // 削除確認
+  const confirmDelete = (type: 'client' | 'application', id: string) => {
+    setDeleteTarget({ type, id });
     setIsDeleteConfirmOpen(true);
   };
 
   // 削除実行
   const executeDelete = async () => {
-    if (deleteTarget) {
-      try {
-        if (deleteTarget.type === 'application') {
-          await deleteApplication(deleteTarget.id);
-          setIsDetailModalOpen(false);
-        } else {
-          await deleteClient(deleteTarget.id);
-          if (selectedClient?.id === deleteTarget.id) {
-            setSelectedClient(null);
-          }
+    if (!deleteTarget) return;
+    setIsSubmitting(true);
+    try {
+      if (deleteTarget.type === 'application') {
+        await deleteApplication(deleteTarget.id);
+        setIsDetailPanelOpen(false);
+        showToast("申請を削除しました", "success");
+      } else {
+        await deleteClient(deleteTarget.id);
+        if (selectedClient?.id === deleteTarget.id) {
+          setSelectedClient(null);
         }
-      } catch (error) {
-        console.error("削除エラー:", error);
-        alert("削除に失敗しました");
+        showToast("顧問先を削除しました", "success");
       }
+    } catch (error) {
+      console.error("削除エラー:", error);
+      showToast("削除に失敗しました", "error");
+    } finally {
+      setIsSubmitting(false);
+      setIsDeleteConfirmOpen(false);
+      setDeleteTarget(null);
     }
-    setIsDeleteConfirmOpen(false);
-    setDeleteTarget(null);
   };
 
   // 新規申請登録
   const handleNewApplication = async () => {
     if (!newAppForm.clientId || !newAppForm.workerName || !newAppForm.conversionDate || !newAppForm.applicationDeadline) {
-      alert("必須項目を入力してください");
+      showToast("必須項目を入力してください", "warning");
       return;
     }
 
+    setIsSubmitting(true);
     const salaryIncreaseRate = newAppForm.preSalary > 0
       ? ((newAppForm.postSalary - newAppForm.preSalary) / newAppForm.preSalary) * 100
       : 0;
 
-    // 助成金額を計算
     const client = getClientById(newAppForm.clientId);
     const isSmall = client?.isSmallBusiness ?? true;
     const phase1 = isSmall
@@ -225,14 +182,16 @@ export default function DashboardPage() {
         salaryIncreaseRate: salaryIncreaseRate || undefined,
         estimatedAmount: { phase1, phase2, total: phase1 + phase2 },
         notes: newAppForm.notes || undefined,
-        phase: 1, // 新規申請は常に第1期
+        phase: 1,
       });
-
+      showToast("申請を登録しました", "success");
       setIsNewApplicationModalOpen(false);
       resetNewAppForm();
     } catch (error) {
       console.error("申請登録エラー:", error);
-      alert("申請の登録に失敗しました");
+      showToast("申請の登録に失敗しました", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -260,10 +219,11 @@ export default function DashboardPage() {
   // 新規顧問先登録
   const handleNewClient = async () => {
     if (!newClientForm.companyName) {
-      alert("企業名を入力してください");
+      showToast("企業名を入力してください", "warning");
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await addClient({
         companyName: newClientForm.companyName,
@@ -273,12 +233,14 @@ export default function DashboardPage() {
         hasEmploymentRules: newClientForm.hasEmploymentRules,
         careerUpPlanSubmittedAt: newClientForm.careerUpPlanSubmittedAt || undefined,
       });
-
+      showToast("顧問先を登録しました", "success");
       setIsNewClientModalOpen(false);
       resetNewClientForm();
     } catch (error) {
       console.error("顧問先登録エラー:", error);
-      alert("顧問先の登録に失敗しました");
+      showToast("顧問先の登録に失敗しました", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -293,48 +255,10 @@ export default function DashboardPage() {
     });
   };
 
-  // 顧問先編集
-  const handleEditClient = async () => {
-    if (selectedClient && newClientForm.companyName) {
-      try {
-        await updateClient(selectedClient.id, {
-          companyName: newClientForm.companyName,
-          registrationNumber: newClientForm.registrationNumber || undefined,
-          isSmallBusiness: newClientForm.isSmallBusiness,
-          careerUpManager: newClientForm.careerUpManager || undefined,
-          hasEmploymentRules: newClientForm.hasEmploymentRules,
-          careerUpPlanSubmittedAt: newClientForm.careerUpPlanSubmittedAt || undefined,
-        });
-        setSelectedClient({
-          ...selectedClient,
-          ...newClientForm,
-        });
-        setIsEditClientModalOpen(false);
-      } catch (error) {
-        console.error("顧問先更新エラー:", error);
-        alert("顧問先の更新に失敗しました");
-      }
-    }
-  };
-
-  const openEditClientModal = () => {
-    if (selectedClient) {
-      setNewClientForm({
-        companyName: selectedClient.companyName,
-        registrationNumber: selectedClient.registrationNumber || "",
-        isSmallBusiness: selectedClient.isSmallBusiness,
-        careerUpManager: selectedClient.careerUpManager || "",
-        hasEmploymentRules: selectedClient.hasEmploymentRules,
-        careerUpPlanSubmittedAt: selectedClient.careerUpPlanSubmittedAt || "",
-      });
-      setIsEditClientModalOpen(true);
-    }
-  };
-
-  if (authLoading || dataLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>読み込み中...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     );
   }
@@ -343,961 +267,384 @@ export default function DashboardPage() {
     return null;
   }
 
-  // 全体の統計
-  const allUrgent = applications.filter((app) => app.daysRemaining >= 0 && app.daysRemaining <= 14);
-  const allPriority = applications.filter((app) => app.isPriorityTarget);
-  const totalAmount = applications.reduce((sum, app) => sum + (app.estimatedAmount?.total || 800000), 0);
+  // データ
+  const displayApps = selectedClient
+    ? applications.filter(app => app.clientId === selectedClient.id)
+    : applications;
+
+  const urgentApps = applications.filter(app => app.daysRemaining >= 0 && app.daysRemaining <= 7);
+  const warningApps = applications.filter(app => app.daysRemaining > 7 && app.daysRemaining <= 14);
+  const expiredApps = applications.filter(app => app.daysRemaining < 0);
+  const priorityApps = applications.filter(app => app.isPriorityTarget);
+  const totalAmount = applications.reduce((sum, app) => sum + (app.estimatedAmount?.total || 0), 0);
+
+  // ステータス別にグループ化
+  const groupedByStatus = {
+    preparing: displayApps.filter(app => app.status === 'preparing'),
+    documents_ready: displayApps.filter(app => app.status === 'documents_ready'),
+    submitted: displayApps.filter(app => app.status === 'submitted'),
+    under_review: displayApps.filter(app => app.status === 'under_review'),
+    approved: displayApps.filter(app => app.status === 'approved'),
+    paid: displayApps.filter(app => app.status === 'paid'),
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/dashboard" className="text-xl font-bold text-blue-900">
-            キャリアアップ助成金 申請支援
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/help" className="text-sm text-gray-600 hover:text-blue-600">
-              ヘルプ
-            </Link>
-            <span className="text-sm text-gray-600">{officeName}</span>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              ログアウト
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <h1 className="text-3xl font-bold mb-2">ダッシュボード</h1>
-        <p className="text-gray-600 mb-8">申請状況の確認と各種ツールにアクセスできます</p>
-
-        {/* 期限アラート */}
-        {allUrgent.length > 0 && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTitle>申請期限が近い案件があります</AlertTitle>
-            <AlertDescription>
-              {allUrgent.slice(0, 3).map((app) => {
-                const client = getClientById(app.clientId);
-                return (
-                  <div key={app.id} className="mt-1">
-                    <strong>{client?.companyName}</strong> - {app.workerName}さん: あと{app.daysRemaining}日
-                    （期限: {app.applicationDeadline}）
-                  </div>
-                );
-              })}
-              {allUrgent.length > 3 && (
-                <div className="mt-1 text-sm">他 {allUrgent.length - 3} 件</div>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* 第2期申請リマインダー */}
-        {(() => {
-          // 第1期が承認済み・支給済みで、重点支援対象者（第2期対象）の申請を検索
-          const phase2Candidates = applications.filter(app =>
-            app.isPriorityTarget &&
-            app.phase === 1 &&
-            (app.status === 'approved' || app.status === 'paid') &&
-            !app.phase2DeadlineNotified
-          );
-
-          if (phase2Candidates.length === 0) return null;
-
-          return (
-            <Alert className="mb-6 border-purple-300 bg-purple-50">
-              <AlertTitle className="text-purple-800">第2期申請の準備をお忘れなく</AlertTitle>
-              <AlertDescription className="text-purple-700">
-                <p className="mb-2">
-                  以下の重点支援対象者は第1期が完了し、第2期申請の対象です。
-                  転換後1年経過後に第2期申請が可能になります。
-                </p>
-                {phase2Candidates.slice(0, 3).map((app) => {
-                  const client = getClientById(app.clientId);
-                  // 転換日から1年後を第2期申請開始日として計算
-                  const conversionDate = new Date(app.conversionDate);
-                  const phase2StartDate = new Date(conversionDate);
-                  phase2StartDate.setFullYear(phase2StartDate.getFullYear() + 1);
-
-                  return (
-                    <div key={app.id} className="mt-1">
-                      <strong>{client?.companyName}</strong> - {app.workerName}さん
-                      （第2期申請開始: {phase2StartDate.toISOString().slice(0, 10)}頃）
-                    </div>
-                  );
-                })}
-                {phase2Candidates.length > 3 && (
-                  <div className="mt-1 text-sm">他 {phase2Candidates.length - 3} 件</div>
-                )}
-                <p className="text-xs mt-2">
-                  ※ 第2期は転換後1年経過〜2ヶ月以内に申請が必要です
-                </p>
-              </AlertDescription>
-            </Alert>
-          );
-        })()}
-
-        {/* クイックアクション */}
-        <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/calculator">
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="text-2xl">📊</span>
-                      賃金計算
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">3%賃金上昇率を計算</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>転換前後6ヶ月の賃金を入力し、3%以上の賃金上昇要件を満たしているか確認できます</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/eligibility">
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="text-2xl">✅</span>
-                      要件チェック
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">支給要件を確認</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>キャリアアップ計画届出時期、雇用期間、賃金要件など全ての支給要件をチェックします</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/documents/check">
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full border-blue-200 bg-blue-50">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="text-2xl">📋</span>
-                      書類チェック
-                      <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded">NEW</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">必要書類を確認</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>申請に必要な書類（賃金台帳、出勤簿、労働条件通知書など）の準備状況を確認できます</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/guide">
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="text-2xl">📚</span>
-                      ガイド
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">よくある誤解と対策</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>申請でよくある失敗パターンと対策を解説。事前に確認して申請ミスを防ぎましょう</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card
-                className="hover:shadow-md transition-shadow cursor-pointer h-full"
-                onClick={() => {
-                  resetNewAppForm();
-                  if (selectedClient) {
-                    setNewAppForm(prev => ({ ...prev, clientId: selectedClient.id }));
-                  }
-                  setIsNewApplicationModalOpen(true);
-                }}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span className="text-2xl">➕</span>
-                    新規申請
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600">新しい申請を登録</p>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>新しい労働者の正社員転換申請を登録します。転換日から2ヶ月以内に申請が必要です</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/calendar">
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full border-orange-200 bg-orange-50">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="text-2xl">📅</span>
-                      カレンダー
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">期限を視覚的に確認</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>申請期限をカレンダー形式で表示。期限間近の申請を色分けで確認できます</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/settings">
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="text-2xl">⚙️</span>
-                      設定
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">バックアップ・復元</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>データのバックアップ（JSON/CSV）とインポート、データ管理を行えます</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-
-        {/* 統計サマリー */}
-        <div className="grid md:grid-cols-5 gap-4 mb-8">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card className="cursor-help">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600">{clients.length}</div>
-                    <div className="text-sm text-gray-600">顧問先企業</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>登録されている顧問先企業の総数です</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card className="cursor-help">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600">{applications.length}</div>
-                    <div className="text-sm text-gray-600">全申請件数</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>全顧問先の申請件数の合計です（全ステータス含む）</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card className="cursor-help">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-red-600">{allUrgent.length}</div>
-                    <div className="text-sm text-gray-600">期限間近</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>申請期限まで14日以内の申請件数です。早急に対応が必要です</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card className="cursor-help">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600">{allPriority.length}</div>
-                    <div className="text-sm text-gray-600">重点支援対象</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>2025年度の重点支援対象者（カテゴリA/B/C）に該当する申請件数です。第2期申請も対象になります</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card className="cursor-help">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-600">¥{totalAmount.toLocaleString()}</div>
-                    <div className="text-sm text-gray-600">想定助成金総額</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>全申請の想定助成金額の合計です（第1期・第2期含む）</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-
-        {/* メインコンテンツ: 会社選択 → 労働者一覧 */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* 顧問先企業一覧 */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center gap-2">
-                    <span>🏢</span> 顧問先企業
-                  </CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      resetNewClientForm();
-                      setIsNewClientModalOpen(true);
-                    }}
-                  >
-                    追加
-                  </Button>
-                </div>
-                <CardDescription>企業を選択して申請を表示</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {/* 全社表示ボタン */}
-                  <button
-                    onClick={() => setSelectedClient(null)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${
-                      selectedClient === null
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="font-medium">すべての企業</div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {applications.length} 件の申請
-                    </div>
-                  </button>
-
-                  {/* 企業リスト */}
-                  {clients.map((client) => {
-                    const stats = getClientStats(client.id);
-                    return (
-                      <button
-                        key={client.id}
-                        onClick={() => setSelectedClient(client)}
-                        className={`w-full text-left p-3 rounded-lg border transition-all ${
-                          selectedClient?.id === client.id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium">{client.companyName}</div>
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {client.isSmallBusiness ? '中小企業' : '大企業'}
-                              {client.careerUpManager && ` • ${client.careerUpManager}`}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium">{stats.count} 件</div>
-                            {stats.urgent > 0 && (
-                              <div className="text-xs text-red-600">{stats.urgent} 件期限間近</div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 申請一覧（選択した会社の労働者） */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <span>👤</span>
-                      {selectedClient ? `${selectedClient.companyName} の申請` : 'すべての申請'}
-                    </CardTitle>
-                    <CardDescription>
-                      {selectedClient
-                        ? `${selectedClient.companyName} の対象労働者と申請状況`
-                        : '全企業の対象労働者と申請状況'}
-                    </CardDescription>
-                  </div>
-                  {selectedClient && (
-                    <Button
-                      onClick={() => {
-                        resetNewAppForm();
-                        setNewAppForm(prev => ({ ...prev, clientId: selectedClient.id }));
-                        setIsNewApplicationModalOpen(true);
-                      }}
-                    >
-                      新規申請
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {(() => {
-                  const displayApps = selectedClient
-                    ? getClientApplications(selectedClient.id)
-                    : applications;
-
-                  if (displayApps.length === 0) {
-                    return (
-                      <div className="text-center py-8 text-gray-500">
-                        <p>{selectedClient ? 'この企業にはまだ申請がありません' : 'まだ申請がありません'}</p>
-                        <Button
-                          className="mt-4"
-                          onClick={() => {
-                            resetNewAppForm();
-                            if (selectedClient) {
-                              setNewAppForm(prev => ({ ...prev, clientId: selectedClient.id }));
-                            }
-                            setIsNewApplicationModalOpen(true);
-                          }}
-                        >
-                          新規申請を登録
-                        </Button>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-3 px-2 font-medium">労働者名</th>
-                            {!selectedClient && (
-                              <th className="text-left py-3 px-2 font-medium">企業</th>
-                            )}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <th className="text-left py-3 px-2 font-medium cursor-help">残り日数</th>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>申請期限までの残り日数。赤色は14日以内で緊急対応が必要です</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <th className="text-left py-3 px-2 font-medium cursor-help">ステータス</th>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>準備中→書類作成中→申請済み→審査中→承認済み→支給済み</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <th className="text-left py-3 px-2 font-medium cursor-help">重点</th>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>2025年度重点支援対象者のカテゴリ（A/B/C）。第2期申請で追加助成金が得られます</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <th className="text-left py-3 px-2 font-medium cursor-help">想定額</th>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>企業規模と重点支援対象者区分から算出した想定助成金額（第1期+第2期）</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <th className="text-left py-3 px-2 font-medium">操作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {displayApps.map((app) => {
-                            const client = getClientById(app.clientId);
-                            return (
-                              <tr key={app.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-2">
-                                  <div className="font-medium">{app.workerName}</div>
-                                  {app.notes && (
-                                    <div className="text-xs text-gray-500">{app.notes}</div>
-                                  )}
-                                </td>
-                                {!selectedClient && (
-                                  <td className="py-3 px-2 text-sm text-gray-600">
-                                    {client?.companyName || '-'}
-                                  </td>
-                                )}
-                                <td className="py-3 px-2">
-                                  <span className={`px-2 py-1 rounded text-sm font-medium ${getDeadlineColor(app.daysRemaining)}`}>
-                                    {app.daysRemaining < 0
-                                      ? `${Math.abs(app.daysRemaining)}日超過`
-                                      : `${app.daysRemaining}日`}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-2">
-                                  <span className={`px-2 py-1 rounded text-sm ${getStatusColor(app.statusLabel)}`}>
-                                    {app.statusLabel}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-2">
-                                  {app.isPriorityTarget ? (
-                                    <span className="px-2 py-1 rounded text-sm bg-purple-100 text-purple-700">
-                                      {app.priorityCategory}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-2 text-sm">
-                                  ¥{(app.estimatedAmount?.total || 800000).toLocaleString()}
-                                </td>
-                                <td className="py-3 px-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openDetailModal(app)}
-                                  >
-                                    詳細
-                                  </Button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-
-            {/* 選択した会社の詳細情報 */}
-            {selectedClient && (
-              <>
-              <Card className="mt-6">
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">企業情報</CardTitle>
-                    <div className="space-x-2">
-                      <Button variant="outline" size="sm" onClick={openEditClientModal}>
-                        編集
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
-                        onClick={() => confirmDeleteClient(selectedClient.id)}
-                      >
-                        削除
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <div className="text-gray-500">企業名</div>
-                      <div className="font-medium">{selectedClient.companyName}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">雇用保険適用事業所番号</div>
-                      <div className="font-medium">{selectedClient.registrationNumber || '未登録'}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">企業規模</div>
-                      <div className="font-medium">{selectedClient.isSmallBusiness ? '中小企業' : '大企業'}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">キャリアアップ管理者</div>
-                      <div className="font-medium">{selectedClient.careerUpManager || '未設定'}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">就業規則</div>
-                      <div className="font-medium">
-                        {selectedClient.hasEmploymentRules ? (
-                          <span className="text-green-600">整備済み</span>
-                        ) : (
-                          <span className="text-red-600">未整備</span>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">キャリアアップ計画届出日</div>
-                      <div className="font-medium">{selectedClient.careerUpPlanSubmittedAt || '未届出'}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">想定助成金総額</div>
-                      <div className="font-medium">
-                        ¥{getClientStats(selectedClient.id).total.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 転換前準備チェックリスト */}
-              <Card className="mt-6 border-purple-200">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span>📋</span> 転換前準備チェックリスト
-                  </CardTitle>
-                  <CardDescription>
-                    申請前に必要な準備状況を確認・管理できます
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    {[
-                      { key: 'careerUpPlanSubmitted', label: 'キャリアアップ計画届出済み' },
-                      { key: 'employmentRulesReady', label: '就業規則整備済み' },
-                      { key: 'regularEmployeeDefinitionReady', label: '正社員定義の明確化' },
-                      { key: 'wageTableReady', label: '賃金規程整備済み' },
-                      { key: 'trialPeriodChecked', label: '試用期間の確認' },
-                      { key: 'socialInsuranceReady', label: '社会保険加入手続き確認' },
-                      { key: 'laborConditionsNotified', label: '労働条件通知書準備済み' },
-                      { key: 'sixMonthEmploymentConfirmed', label: '6ヶ月以上雇用確認' },
-                    ].map(item => {
-                      const checklist = selectedClient.preparationChecklist || {};
-                      const isChecked = checklist[item.key as keyof typeof checklist] || false;
-                      return (
-                        <label
-                          key={item.key}
-                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                            isChecked
-                              ? 'bg-green-50 border-green-300'
-                              : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={async (e) => {
-                              const newChecklist = {
-                                ...selectedClient.preparationChecklist,
-                                [item.key]: e.target.checked,
-                              };
-                              try {
-                                await updateClient(selectedClient.id, {
-                                  preparationChecklist: newChecklist,
-                                });
-                                setSelectedClient({
-                                  ...selectedClient,
-                                  preparationChecklist: newChecklist,
-                                });
-                              } catch (error) {
-                                console.error("チェックリスト更新エラー:", error);
-                              }
-                            }}
-                            className="w-5 h-5 rounded"
-                          />
-                          <span className={`text-sm ${isChecked ? 'text-green-700' : 'text-gray-700'}`}>
-                            {item.label}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <div className="text-sm text-blue-700">
-                      完了: {
-                        Object.values(selectedClient.preparationChecklist || {}).filter(Boolean).length
-                      } / 8 項目
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              </>
-            )}
-          </div>
-        </div>
-      </main>
-
-      {/* 労働者詳細モーダル */}
-      <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>申請詳細</DialogTitle>
-            <DialogDescription>
-              {selectedApplication && getClientById(selectedApplication.clientId)?.companyName} - {selectedApplication?.workerName}さん
-            </DialogDescription>
-          </DialogHeader>
-          {selectedApplication && (
-            <div className="space-y-6">
-              {/* 基本情報 */}
-              <div>
-                <h3 className="font-medium mb-3 text-gray-700">基本情報</h3>
-                <div className="grid md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-gray-500">労働者名</div>
-                    <div className="font-medium">{selectedApplication.workerName}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">フリガナ</div>
-                    <div className="font-medium">{selectedApplication.workerNameKana || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">生年月日</div>
-                    <div className="font-medium">{selectedApplication.birthDate || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">性別</div>
-                    <div className="font-medium">
-                      {selectedApplication.gender === 'male' ? '男性' : selectedApplication.gender === 'female' ? '女性' : '-'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">雇入れ日</div>
-                    <div className="font-medium">{selectedApplication.hireDate || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">正社員転換日</div>
-                    <div className="font-medium">{selectedApplication.conversionDate}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 申請情報 */}
-              <div>
-                <h3 className="font-medium mb-3 text-gray-700">申請情報</h3>
-                <div className="grid md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-gray-500">転換区分</div>
-                    <div className="font-medium">
-                      {selectedApplication.conversionType === 'fixed_to_regular' && '有期→正規'}
-                      {selectedApplication.conversionType === 'indefinite_to_regular' && '無期→正規'}
-                      {selectedApplication.conversionType === 'dispatch_to_regular' && '派遣→正規'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">申請期限</div>
-                    <div className="font-medium">{selectedApplication.applicationDeadline}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">残り日数</div>
-                    <div className={`font-medium ${selectedApplication.daysRemaining <= 14 ? 'text-red-600' : ''}`}>
-                      {selectedApplication.daysRemaining < 0
-                        ? `${Math.abs(selectedApplication.daysRemaining)}日超過`
-                        : `${selectedApplication.daysRemaining}日`}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">ステータス</div>
-                    <div>
-                      <Select
-                        value={selectedApplication.status}
-                        onValueChange={(value: Application['status']) => handleStatusChange(value)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="preparing">準備中</SelectItem>
-                          <SelectItem value="documents_ready">書類作成中</SelectItem>
-                          <SelectItem value="submitted">申請済み</SelectItem>
-                          <SelectItem value="under_review">審査中</SelectItem>
-                          <SelectItem value="approved">承認済み</SelectItem>
-                          <SelectItem value="paid">支給済み</SelectItem>
-                          <SelectItem value="rejected">不承認</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 賃金情報 */}
-              <div>
-                <h3 className="font-medium mb-3 text-gray-700">賃金情報</h3>
-                <div className="grid md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <div className="text-gray-500">転換前賃金</div>
-                    <div className="font-medium">
-                      {selectedApplication.preSalary
-                        ? `¥${selectedApplication.preSalary.toLocaleString()}`
-                        : '-'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">転換後賃金</div>
-                    <div className="font-medium">
-                      {selectedApplication.postSalary
-                        ? `¥${selectedApplication.postSalary.toLocaleString()}`
-                        : '-'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">上昇率</div>
-                    <div className={`font-medium ${(selectedApplication.salaryIncreaseRate || 0) >= 3 ? 'text-green-600' : 'text-red-600'}`}>
-                      {selectedApplication.salaryIncreaseRate
-                        ? `${selectedApplication.salaryIncreaseRate.toFixed(1)}%`
-                        : '-'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 重点支援対象者 */}
-              <div>
-                <h3 className="font-medium mb-3 text-gray-700">重点支援対象者</h3>
-                <div className="grid md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-gray-500">対象区分</div>
-                    <div className="font-medium">
-                      {selectedApplication.isPriorityTarget ? (
-                        <span className="px-2 py-1 rounded bg-purple-100 text-purple-700">
-                          カテゴリ {selectedApplication.priorityCategory}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">対象外</span>
-                      )}
-                    </div>
-                  </div>
-                  {selectedApplication.isPriorityTarget && selectedApplication.priorityReason && (
-                    <div>
-                      <div className="text-gray-500">理由</div>
-                      <div className="font-medium">{selectedApplication.priorityReason}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 助成金額 */}
-              <div>
-                <h3 className="font-medium mb-3 text-gray-700">想定助成金額</h3>
-                <div className="grid md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <div className="text-gray-500">1期目</div>
-                    <div className="font-medium">
-                      ¥{(selectedApplication.estimatedAmount?.phase1 || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">2期目</div>
-                    <div className="font-medium">
-                      ¥{(selectedApplication.estimatedAmount?.phase2 || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">合計</div>
-                    <div className="font-bold text-lg text-blue-600">
-                      ¥{(selectedApplication.estimatedAmount?.total || 0).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 書類チェック結果 */}
-              <div>
-                <h3 className="font-medium mb-3 text-gray-700 flex items-center gap-2">
-                  書類チェック状況
-                  <Link href="/documents/check">
-                    <Button variant="link" size="sm" className="text-xs p-0 h-auto">
-                      チェックする →
-                    </Button>
-                  </Link>
-                </h3>
-                {selectedApplication.documentCheckResult ? (
-                  <div className="bg-gray-50 p-3 rounded text-sm">
-                    <div className="flex justify-between items-center mb-2">
-                      <span>確認日: {selectedApplication.documentCheckResult.checkedAt}</span>
-                      <span className={
-                        selectedApplication.documentCheckResult.completedCount ===
-                        selectedApplication.documentCheckResult.totalCount
-                          ? 'text-green-600 font-medium'
-                          : 'text-orange-600 font-medium'
-                      }>
-                        {selectedApplication.documentCheckResult.completedCount} / {selectedApplication.documentCheckResult.totalCount} 完了
-                      </span>
-                    </div>
-                    {selectedApplication.documentCheckResult.missingDocuments.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-red-600 text-xs mb-1">不足書類:</div>
-                        <ul className="text-xs text-red-600 list-disc list-inside">
-                          {selectedApplication.documentCheckResult.missingDocuments.map((doc, i) => (
-                            <li key={i}>{doc}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 p-3 rounded text-sm text-gray-500">
-                    まだ書類チェックを実施していません
-                  </div>
-                )}
-              </div>
-
-              {/* メモ */}
-              {selectedApplication.notes && (
+    <AppLayout
+      selectedClient={selectedClient}
+      onClientChange={setSelectedClient}
+      showClientSelector={true}
+    >
+      {dataLoading ? (
+        <DashboardSkeleton />
+      ) : (
+        <div className="space-y-6 animate-fade-in">
+          {/* 緊急アラートエリア */}
+          {(expiredApps.length > 0 || urgentApps.length > 0) && (
+            <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-xl p-4 text-white shadow-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl animate-pulse">⚠️</span>
                 <div>
-                  <h3 className="font-medium mb-3 text-gray-700">メモ</h3>
-                  <p className="text-sm bg-gray-50 p-3 rounded">{selectedApplication.notes}</p>
+                  <h2 className="font-bold">緊急対応が必要です</h2>
+                  <p className="text-red-100 text-sm">
+                    {expiredApps.length > 0 && `期限超過: ${expiredApps.length}件`}
+                    {expiredApps.length > 0 && urgentApps.length > 0 && ' / '}
+                    {urgentApps.length > 0 && `7日以内: ${urgentApps.length}件`}
+                  </p>
                 </div>
-              )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => {
+                    const target = expiredApps[0] || urgentApps[0];
+                    if (target) openDetailPanel(target);
+                  }}
+                >
+                  確認する
+                </Button>
+              </div>
             </div>
           )}
-          <DialogFooter className="flex justify-between">
+
+          {/* 統計カード */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <span className="text-2xl">🏢</span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">{clients.length}</div>
+                    <div className="text-sm text-gray-500">顧問先企業</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-green-100 rounded-xl">
+                    <span className="text-2xl">📝</span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">{applications.length}</div>
+                    <div className="text-sm text-gray-500">全申請件数</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-red-100 rounded-xl">
+                    <span className="text-2xl">🔴</span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-red-600">{urgentApps.length + expiredApps.length}</div>
+                    <div className="text-sm text-gray-500">要対応</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <span className="text-2xl">⭐</span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-purple-600">{priorityApps.length}</div>
+                    <div className="text-sm text-gray-500">重点支援</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-yellow-100 rounded-xl">
+                    <span className="text-2xl">💰</span>
+                  </div>
+                  <div>
+                    <div className="text-xl font-bold text-gray-900">¥{(totalAmount / 10000).toFixed(0)}万</div>
+                    <div className="text-sm text-gray-500">想定総額</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* アクションボタン */}
+          <div className="flex gap-3">
+            <Button
+              onClick={() => {
+                resetNewAppForm();
+                if (selectedClient) {
+                  setNewAppForm(prev => ({ ...prev, clientId: selectedClient.id }));
+                }
+                setIsNewApplicationModalOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <span className="mr-2">➕</span>
+              新規申請を登録
+            </Button>
             <Button
               variant="outline"
-              className="text-red-600 hover:text-red-700"
-              onClick={() => selectedApplication && confirmDeleteApplication(selectedApplication.id)}
+              onClick={() => {
+                resetNewClientForm();
+                setIsNewClientModalOpen(true);
+              }}
             >
-              削除
+              <span className="mr-2">🏢</span>
+              顧問先を追加
             </Button>
-            <Button onClick={() => setIsDetailModalOpen(false)}>閉じる</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          {/* 申請一覧 - カンバン風 */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* 対応中 */}
+            <div className="bg-white rounded-xl border shadow-sm">
+              <div className="px-4 py-3 border-b bg-gray-50 rounded-t-xl">
+                <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                  <span className="w-3 h-3 bg-yellow-400 rounded-full"></span>
+                  対応中
+                  <span className="ml-auto bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                    {groupedByStatus.preparing.length + groupedByStatus.documents_ready.length}
+                  </span>
+                </h3>
+              </div>
+              <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
+                {[...groupedByStatus.preparing, ...groupedByStatus.documents_ready].map(app => (
+                  <ApplicationCard
+                    key={app.id}
+                    application={app}
+                    client={getClientById(app.clientId)}
+                    onClick={() => openDetailPanel(app)}
+                  />
+                ))}
+                {groupedByStatus.preparing.length + groupedByStatus.documents_ready.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">なし</div>
+                )}
+              </div>
+            </div>
+
+            {/* 申請済み */}
+            <div className="bg-white rounded-xl border shadow-sm">
+              <div className="px-4 py-3 border-b bg-gray-50 rounded-t-xl">
+                <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                  <span className="w-3 h-3 bg-blue-400 rounded-full"></span>
+                  申請済み・審査中
+                  <span className="ml-auto bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                    {groupedByStatus.submitted.length + groupedByStatus.under_review.length}
+                  </span>
+                </h3>
+              </div>
+              <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
+                {[...groupedByStatus.submitted, ...groupedByStatus.under_review].map(app => (
+                  <ApplicationCard
+                    key={app.id}
+                    application={app}
+                    client={getClientById(app.clientId)}
+                    onClick={() => openDetailPanel(app)}
+                  />
+                ))}
+                {groupedByStatus.submitted.length + groupedByStatus.under_review.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">なし</div>
+                )}
+              </div>
+            </div>
+
+            {/* 完了 */}
+            <div className="bg-white rounded-xl border shadow-sm">
+              <div className="px-4 py-3 border-b bg-gray-50 rounded-t-xl">
+                <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                  <span className="w-3 h-3 bg-green-400 rounded-full"></span>
+                  完了
+                  <span className="ml-auto bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                    {groupedByStatus.approved.length + groupedByStatus.paid.length}
+                  </span>
+                </h3>
+              </div>
+              <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
+                {[...groupedByStatus.approved, ...groupedByStatus.paid].map(app => (
+                  <ApplicationCard
+                    key={app.id}
+                    application={app}
+                    client={getClientById(app.clientId)}
+                    onClick={() => openDetailPanel(app)}
+                  />
+                ))}
+                {groupedByStatus.approved.length + groupedByStatus.paid.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">なし</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 詳細スライドパネル */}
+      <SlidePanel
+        isOpen={isDetailPanelOpen}
+        onClose={() => setIsDetailPanelOpen(false)}
+        title="申請詳細"
+        width="lg"
+      >
+        {selectedApplication && (
+          <div className="space-y-6">
+            {/* 基本情報 */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">基本情報</h3>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">労働者名</span>
+                  <span className="font-medium">{selectedApplication.workerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">企業名</span>
+                  <span className="font-medium">{getClientById(selectedApplication.clientId)?.companyName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">転換日</span>
+                  <span className="font-medium">{selectedApplication.conversionDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">申請期限</span>
+                  <span className="font-medium">{selectedApplication.applicationDeadline}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 期限状況 */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">期限状況</h3>
+              <DeadlineProgress daysRemaining={selectedApplication.daysRemaining} />
+            </div>
+
+            {/* ステータス変更 */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">ステータス</h3>
+              <Select
+                value={selectedApplication.status}
+                onValueChange={(value: Application['status']) => handleStatusChange(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="preparing">準備中</SelectItem>
+                  <SelectItem value="documents_ready">書類作成中</SelectItem>
+                  <SelectItem value="submitted">申請済み</SelectItem>
+                  <SelectItem value="under_review">審査中</SelectItem>
+                  <SelectItem value="approved">承認済み</SelectItem>
+                  <SelectItem value="paid">支給済み</SelectItem>
+                  <SelectItem value="rejected">不承認</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 賃金情報 */}
+            {(selectedApplication.preSalary || selectedApplication.postSalary) && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">賃金情報</h3>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">転換前賃金</span>
+                    <span className="font-medium">¥{selectedApplication.preSalary?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">転換後賃金</span>
+                    <span className="font-medium">¥{selectedApplication.postSalary?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">上昇率</span>
+                    <span className={`font-medium ${(selectedApplication.salaryIncreaseRate || 0) >= 3 ? 'text-green-600' : 'text-red-600'}`}>
+                      {selectedApplication.salaryIncreaseRate?.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 助成金額 */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">想定助成金額</h3>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">
+                    ¥{selectedApplication.estimatedAmount?.total.toLocaleString()}
+                  </div>
+                  <div className="text-sm text-blue-500 mt-1">
+                    1期: ¥{selectedApplication.estimatedAmount?.phase1.toLocaleString()} /
+                    2期: ¥{selectedApplication.estimatedAmount?.phase2.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 重点支援対象 */}
+            {selectedApplication.isPriorityTarget && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">重点支援対象者</h3>
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-1 bg-purple-200 text-purple-700 rounded-full text-sm font-medium">
+                      カテゴリ {selectedApplication.priorityCategory}
+                    </span>
+                    {selectedApplication.priorityReason && (
+                      <span className="text-purple-700 text-sm">{selectedApplication.priorityReason}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* アクション */}
+            <div className="pt-4 border-t space-y-2">
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => confirmDelete('application', selectedApplication.id)}
+              >
+                この申請を削除
+              </Button>
+            </div>
+          </div>
+        )}
+      </SlidePanel>
 
       {/* 新規申請モーダル */}
       <Dialog open={isNewApplicationModalOpen} onOpenChange={setIsNewApplicationModalOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>新規申請登録</DialogTitle>
-            <DialogDescription>
-              新しい労働者の申請情報を入力してください
-            </DialogDescription>
+            <DialogDescription>新しい労働者の申請情報を入力してください</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -1340,42 +687,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <Label>生年月日</Label>
-                <Input
-                  type="date"
-                  className="mt-1"
-                  value={newAppForm.birthDate}
-                  onChange={(e) => setNewAppForm(prev => ({ ...prev, birthDate: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label>性別</Label>
-                <Select
-                  value={newAppForm.gender}
-                  onValueChange={(value: 'male' | 'female') => setNewAppForm(prev => ({ ...prev, gender: value }))}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">男性</SelectItem>
-                    <SelectItem value="female">女性</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>雇入れ日</Label>
-                <Input
-                  type="date"
-                  className="mt-1"
-                  value={newAppForm.hireDate}
-                  onChange={(e) => setNewAppForm(prev => ({ ...prev, hireDate: e.target.value }))}
-                />
-              </div>
-            </div>
-
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>正社員転換日 *</Label>
@@ -1387,25 +698,6 @@ export default function DashboardPage() {
                 />
               </div>
               <div>
-                <Label>転換区分</Label>
-                <Select
-                  value={newAppForm.conversionType}
-                  onValueChange={(value: typeof newAppForm.conversionType) => setNewAppForm(prev => ({ ...prev, conversionType: value }))}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed_to_regular">有期→正規</SelectItem>
-                    <SelectItem value="indefinite_to_regular">無期→正規</SelectItem>
-                    <SelectItem value="dispatch_to_regular">派遣→正規</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
                 <Label>申請期限 *</Label>
                 <Input
                   type="date"
@@ -1414,26 +706,23 @@ export default function DashboardPage() {
                   onChange={(e) => setNewAppForm(prev => ({ ...prev, applicationDeadline: e.target.value }))}
                 />
               </div>
-              <div>
-                <Label>ステータス</Label>
-                <Select
-                  value={newAppForm.status}
-                  onValueChange={(value: Application['status']) => setNewAppForm(prev => ({ ...prev, status: value }))}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="preparing">準備中</SelectItem>
-                    <SelectItem value="documents_ready">書類作成中</SelectItem>
-                    <SelectItem value="submitted">申請済み</SelectItem>
-                    <SelectItem value="under_review">審査中</SelectItem>
-                    <SelectItem value="approved">承認済み</SelectItem>
-                    <SelectItem value="paid">支給済み</SelectItem>
-                    <SelectItem value="rejected">不承認</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            </div>
+
+            <div>
+              <Label>転換区分</Label>
+              <Select
+                value={newAppForm.conversionType}
+                onValueChange={(value: typeof newAppForm.conversionType) => setNewAppForm(prev => ({ ...prev, conversionType: value }))}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed_to_regular">有期→正規</SelectItem>
+                  <SelectItem value="indefinite_to_regular">無期→正規</SelectItem>
+                  <SelectItem value="dispatch_to_regular">派遣→正規</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
@@ -1514,10 +803,19 @@ export default function DashboardPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewApplicationModalOpen(false)}>
+            <Button variant="outline" onClick={() => setIsNewApplicationModalOpen(false)} disabled={isSubmitting}>
               キャンセル
             </Button>
-            <Button onClick={handleNewApplication}>登録</Button>
+            <Button onClick={handleNewApplication} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  登録中...
+                </>
+              ) : (
+                "登録"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1527,9 +825,7 @@ export default function DashboardPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>新規顧問先登録</DialogTitle>
-            <DialogDescription>
-              新しい顧問先企業の情報を入力してください
-            </DialogDescription>
+            <DialogDescription>新しい顧問先企業の情報を入力してください</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -1584,102 +880,21 @@ export default function DashboardPage() {
               />
               <Label htmlFor="hasEmploymentRules">就業規則整備済み</Label>
             </div>
-            <div>
-              <Label>キャリアアップ計画届出日</Label>
-              <Input
-                type="date"
-                className="mt-1"
-                value={newClientForm.careerUpPlanSubmittedAt}
-                onChange={(e) => setNewClientForm(prev => ({ ...prev, careerUpPlanSubmittedAt: e.target.value }))}
-              />
-            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewClientModalOpen(false)}>
+            <Button variant="outline" onClick={() => setIsNewClientModalOpen(false)} disabled={isSubmitting}>
               キャンセル
             </Button>
-            <Button onClick={handleNewClient}>登録</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 顧問先編集モーダル */}
-      <Dialog open={isEditClientModalOpen} onOpenChange={setIsEditClientModalOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>顧問先編集</DialogTitle>
-            <DialogDescription>
-              企業情報を編集してください
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>企業名 *</Label>
-              <Input
-                className="mt-1"
-                value={newClientForm.companyName}
-                onChange={(e) => setNewClientForm(prev => ({ ...prev, companyName: e.target.value }))}
-                placeholder="株式会社○○"
-              />
-            </div>
-            <div>
-              <Label>雇用保険適用事業所番号</Label>
-              <Input
-                className="mt-1"
-                value={newClientForm.registrationNumber}
-                onChange={(e) => setNewClientForm(prev => ({ ...prev, registrationNumber: e.target.value }))}
-                placeholder="1301-123456-7"
-              />
-            </div>
-            <div>
-              <Label>企業規模</Label>
-              <Select
-                value={newClientForm.isSmallBusiness ? "small" : "large"}
-                onValueChange={(value) => setNewClientForm(prev => ({ ...prev, isSmallBusiness: value === "small" }))}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="small">中小企業</SelectItem>
-                  <SelectItem value="large">大企業</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>キャリアアップ管理者</Label>
-              <Input
-                className="mt-1"
-                value={newClientForm.careerUpManager}
-                onChange={(e) => setNewClientForm(prev => ({ ...prev, careerUpManager: e.target.value }))}
-                placeholder="山田 太郎"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="hasEmploymentRulesEdit"
-                checked={newClientForm.hasEmploymentRules}
-                onChange={(e) => setNewClientForm(prev => ({ ...prev, hasEmploymentRules: e.target.checked }))}
-                className="rounded"
-              />
-              <Label htmlFor="hasEmploymentRulesEdit">就業規則整備済み</Label>
-            </div>
-            <div>
-              <Label>キャリアアップ計画届出日</Label>
-              <Input
-                type="date"
-                className="mt-1"
-                value={newClientForm.careerUpPlanSubmittedAt}
-                onChange={(e) => setNewClientForm(prev => ({ ...prev, careerUpPlanSubmittedAt: e.target.value }))}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditClientModalOpen(false)}>
-              キャンセル
+            <Button onClick={handleNewClient} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  登録中...
+                </>
+              ) : (
+                "登録"
+              )}
             </Button>
-            <Button onClick={handleEditClient}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1696,15 +911,49 @@ export default function DashboardPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)} disabled={isSubmitting}>
               キャンセル
             </Button>
-            <Button variant="destructive" onClick={executeDelete}>
-              削除
+            <Button variant="destructive" onClick={executeDelete} disabled={isSubmitting}>
+              {isSubmitting ? "削除中..." : "削除"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </AppLayout>
+  );
+}
+
+// 申請カードコンポーネント
+function ApplicationCard({
+  application,
+  client,
+  onClick
+}: {
+  application: Application;
+  client?: Client;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className="p-3 bg-white border rounded-lg hover:shadow-md hover:border-blue-300 cursor-pointer transition-all"
+    >
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <div className="font-medium text-gray-900">{application.workerName}</div>
+          <div className="text-xs text-gray-500">{client?.companyName}</div>
+        </div>
+        {application.isPriorityTarget && (
+          <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
+            {application.priorityCategory}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center justify-between">
+        <StatusBadge status={application.statusLabel} size="sm" />
+        <DeadlineProgress daysRemaining={application.daysRemaining} showLabel={true} />
+      </div>
     </div>
   );
 }
