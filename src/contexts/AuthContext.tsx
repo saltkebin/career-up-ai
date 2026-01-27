@@ -10,15 +10,10 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 // 環境変数からパスワードを取得（設定されていない場合はデフォルト値）
 const APP_PASSWORD = process.env.NEXT_PUBLIC_APP_PASSWORD || "sharoushi2025";
 
-// 事務所IDを生成（パスワードからハッシュ風の文字列を生成）
-function generateOfficeId(password: string): string {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return `office_${Math.abs(hash).toString(16)}`;
+// 事務所IDを固定（デモ用）
+// 本番環境ではパスワードに基づくユニークIDに変更可能
+function generateOfficeId(_password: string): string {
+  return "demo-office";
 }
 
 interface AuthContextType {
