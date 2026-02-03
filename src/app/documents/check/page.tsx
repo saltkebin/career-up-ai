@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DocumentCode, DocumentCheckItem, DocumentCheckResult, MandatoryField } from "@/types/documents";
+import { DocumentCode, DocumentCheckResult } from "@/types/documents";
 
 // ========================================
 // 書類定義データ

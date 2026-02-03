@@ -4,8 +4,6 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // ========================================
@@ -388,12 +386,6 @@ export default function SummaryPage() {
 
   // 初回ロード時に判定実行
   useEffect(() => {
-    const summaryResult = validateApplication(applicationData);
-    setResult(summaryResult);
-  }, [applicationData]);
-
-  // 判定実行
-  const handleValidate = useCallback(() => {
     const summaryResult = validateApplication(applicationData);
     setResult(summaryResult);
   }, [applicationData]);

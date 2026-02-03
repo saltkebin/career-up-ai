@@ -12,6 +12,7 @@ const APP_PASSWORD = process.env.NEXT_PUBLIC_APP_PASSWORD || "sharoushi2025";
 
 // 事務所IDを固定（デモ用）
 // 本番環境ではパスワードに基づくユニークIDに変更可能
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function generateOfficeId(_password: string): string {
   return "demo-office";
 }

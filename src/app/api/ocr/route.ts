@@ -115,6 +115,7 @@ function getPromptForDocumentType(documentType: string): string {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function parseExtractedData(text: string, documentType: string): Record<string, unknown> {
   try {
     // JSONブロックを抽出

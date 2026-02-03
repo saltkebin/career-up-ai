@@ -351,7 +351,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       // 新しいデータをインポート
       for (const client of data.clients as Client[]) {
-        const { id, ...clientData } = client;
+        // id はFirestoreが自動生成するため除外
+        const clientData = { ...client };
+        delete (clientData as Record<string, unknown>).id;
         await addDoc(clientsRef, {
           ...clientData,
           createdAt: serverTimestamp(),
@@ -360,7 +362,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
 
       for (const app of data.applications as Application[]) {
-        const { id, daysRemaining, statusLabel, ...appData } = app;
+        // id, daysRemaining, statusLabel は動的に計算されるため除外
+        const appData = { ...app };
+        const appRecord = appData as Record<string, unknown>;
+        delete appRecord.id;
+        delete appRecord.daysRemaining;
+        delete appRecord.statusLabel;
         await addDoc(applicationsRef, {
           ...appData,
           createdAt: serverTimestamp(),

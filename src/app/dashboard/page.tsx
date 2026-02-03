@@ -7,7 +7,7 @@ import { useData, Application, Client } from "@/contexts/DataContext";
 import { useToast } from "@/components/ui/toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SlidePanel } from "@/components/ui/slide-panel";
@@ -37,7 +37,6 @@ export default function DashboardPage() {
     applications,
     loading: dataLoading,
     addClient,
-    updateClient,
     deleteClient,
     addApplication,
     updateApplication,
@@ -273,7 +272,6 @@ export default function DashboardPage() {
     : applications;
 
   const urgentApps = applications.filter(app => app.daysRemaining >= 0 && app.daysRemaining <= 7);
-  const warningApps = applications.filter(app => app.daysRemaining > 7 && app.daysRemaining <= 14);
   const expiredApps = applications.filter(app => app.daysRemaining < 0);
   const priorityApps = applications.filter(app => app.isPriorityTarget);
   const totalAmount = applications.reduce((sum, app) => sum + (app.estimatedAmount?.total || 0), 0);
@@ -584,9 +582,17 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">上昇率</span>
-                    <span className={`font-medium ${(selectedApplication.salaryIncreaseRate || 0) >= 3 ? 'text-green-600' : 'text-red-600'}`}>
-                      {selectedApplication.salaryIncreaseRate?.toFixed(1)}%
-                    </span>
+                    {(() => {
+                      const rate = selectedApplication.salaryIncreaseRate
+                        ?? (selectedApplication.preSalary && selectedApplication.postSalary
+                          ? ((selectedApplication.postSalary - selectedApplication.preSalary) / selectedApplication.preSalary) * 100
+                          : 0);
+                      return (
+                        <span className={`font-medium ${rate >= 3 ? 'text-green-600' : 'text-red-600'}`}>
+                          {rate.toFixed(1)}%
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
