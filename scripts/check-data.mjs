@@ -1,17 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
-
-const firebaseConfig = {
-  apiKey: "AIzaSyD-GWveUxVtMjRXNWzQYKW8uhdLF-oyipk",
-  authDomain: "career-up-ai-app.firebaseapp.com",
-  projectId: "career-up-ai-app",
-  storageBucket: "career-up-ai-app.firebasestorage.app",
-  messagingSenderId: "562209775630",
-  appId: "1:562209775630:web:0e0456155e225eb3ce9c5f"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+import { db } from './firebase-config.mjs';
+import { collection, getDocs } from 'firebase/firestore';
 
 const officeId = "demo-office";
 
