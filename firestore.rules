@@ -2,8 +2,40 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /offices/{officeId}/{document=**} {
-      allow read, write: if true;
+    // offices直下のドキュメントへのアクセスは禁止
+    match /offices/{officeId} {
+      allow read, write: if false;
+
+      // クライアントコレクション
+      match /clients/{clientId} {
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasAll(['companyName', 'isSmallBusiness', 'hasEmploymentRules'])
+                      && request.resource.data.companyName is string
+                      && request.resource.data.companyName.size() > 0
+                      && request.resource.data.companyName.size() <= 200;
+        allow update: if request.resource.data.companyName is string
+                      && request.resource.data.companyName.size() > 0;
+        allow delete: if true;
+      }
+
+      // 申請コレクション
+      match /applications/{applicationId} {
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasAll(['clientId', 'workerName', 'conversionDate', 'conversionType', 'status'])
+                      && request.resource.data.workerName is string
+                      && request.resource.data.workerName.size() > 0
+                      && request.resource.data.workerName.size() <= 100
+                      && request.resource.data.status in ['preparing', 'documents_ready', 'submitted', 'under_review', 'approved', 'paid', 'rejected'];
+        allow update: if request.resource.data.workerName is string
+                      && request.resource.data.workerName.size() > 0
+                      && request.resource.data.status in ['preparing', 'documents_ready', 'submitted', 'under_review', 'approved', 'paid', 'rejected'];
+        allow delete: if true;
+      }
+    }
+
+    // 上記以外のパスへのアクセスは全て禁止
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
